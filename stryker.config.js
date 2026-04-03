@@ -9,6 +9,8 @@ export default {
     '!src/data/**/*.js', // data files are config, not logic
     '!src/config.js',    // pure configuration values
     '!src/input.js',     // DOM/touch event handling, tested via integration
+    '!src/renderer.js',  // pure Canvas 2D drawing, tested visually
+    '!src/game.js',      // orchestration with Canvas dependency, tested via game.test.js for logic
   ],
   thresholds: {
     high: 80,
