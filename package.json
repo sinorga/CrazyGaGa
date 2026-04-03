@@ -6,11 +6,19 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:mutate": "stryker run",
+    "test:mutate:ci": "stryker run --reporters clear-text progress"
   },
-  "keywords": ["game", "html5", "roguelite"],
+  "keywords": [
+    "game",
+    "html5",
+    "roguelite"
+  ],
   "license": "ISC",
   "devDependencies": {
+    "@stryker-mutator/core": "^9.6.0",
+    "@stryker-mutator/vitest-runner": "^9.6.0",
     "jsdom": "^29.0.1",
     "vitest": "^4.1.2"
   }
