@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>CrazyGaGa - Roguelite 割草生存</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <script type="module">
+    import { Game } from './src/game.js';
+    import { Renderer } from './src/renderer.js';
+
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const game = new Game(canvas);
+    const renderer = new Renderer(ctx, canvas);
+
+    // Click/tap handler for UI
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      game.handleClick(e.clientX - rect.left, e.clientY - rect.top);
+    });
+
+    // Fixed timestep game loop
+    const FIXED_DT = 1 / 60;
+    let accumulator = 0;
+    let lastTime = 0;
+
+    function loop(timestamp) {
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.1); // cap at 100ms
+      lastTime = timestamp;
+      accumulator += dt;
+
+      // Fixed timestep updates
+      while (accumulator >= FIXED_DT) {
+        if (game.state === 'playing') {
+          game.updatePlaying(FIXED_DT);
+        }
+        accumulator -= FIXED_DT;
+      }
+
+      // Render
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    function render() {
+      if (game.state === 'menu') {
+        renderer.drawMenu(canvas);
+        return;
+      }
+
+      renderer.clear(game.camera);
+      renderer.drawMap(game.camera);
+      renderer.drawPickups(game.pickups, game.camera);
+      renderer.drawEnemies(game.enemies, game.camera);
+      renderer.drawProjectiles(game.projectiles, game.camera);
+      renderer.drawEnemyProjectiles(game.enemyProjectiles, game.camera);
+      renderer.drawOrbitWeapons(game.weaponManager.weapons, game.camera);
+      game.particles.render(ctx, game.camera);
+      renderer.drawPlayer(game.player, game.camera);
+      renderer.drawHUD(game.player, game.elapsed);
+      renderer.drawJoystick(game.input);
+
+      if (game.state === 'levelup') {
+        renderer.drawLevelUpPanel(game.skillChoices, canvas);
+      }
+      if (game.state === 'gameover') {
+        renderer.drawGameOver(game.player, game.elapsed, canvas);
+      }
+    }
+
+    // Start loop
+    requestAnimationFrame((t) => {
+      lastTime = t;
+      requestAnimationFrame(loop);
+    });
+  </script>
+</body>
+</html>
