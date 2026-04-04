@@ -10,6 +10,16 @@ export class WaveSpawner {
     this.waveCount = 0;
   }
 
+  getHpMultiplier(elapsedSeconds) {
+    const minutes = elapsedSeconds / 60;
+    return 1 + minutes * CONFIG.difficulty.hpMultiplierPerMinute;
+  }
+
+  getDamageMultiplier(elapsedSeconds) {
+    const minutes = elapsedSeconds / 60;
+    return 1 + minutes * CONFIG.difficulty.damageMultiplierPerMinute;
+  }
+
   update(dt, playerPos, currentEnemyCount) {
     this.elapsed += dt;
     this.spawnTimer -= dt;
@@ -32,6 +42,8 @@ export class WaveSpawner {
 
     const spawned = [];
     const totalWeight = available.reduce((sum, e) => sum + e.weight, 0);
+    const hpMult = this.getHpMultiplier(this.elapsed);
+    const dmgMult = this.getDamageMultiplier(this.elapsed);
 
     for (let i = 0; i < count; i++) {
       if (currentEnemyCount + spawned.length >= CONFIG.waves.maxEnemies) break;
@@ -55,7 +67,12 @@ export class WaveSpawner {
       const x = Math.max(0, Math.min(CONFIG.map.width, sx));
       const y = Math.max(0, Math.min(CONFIG.map.height, sy));
 
-      spawned.push(new Enemy(x, y, selected));
+      const enemy = new Enemy(x, y, selected);
+      // Apply difficulty scaling
+      enemy.hp = Math.round(enemy.hp * hpMult);
+      enemy.maxHp = enemy.hp;
+      enemy.damage = Math.round(enemy.damage * dmgMult);
+      spawned.push(enemy);
     }
 
     // Decay spawn interval

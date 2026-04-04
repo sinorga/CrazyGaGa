@@ -79,6 +79,12 @@ export const CONFIG = {
     expBarHeight: 6,
   },
 
+  // Difficulty scaling
+  difficulty: {
+    hpMultiplierPerMinute: 0.1,      // +10% HP per minute
+    damageMultiplierPerMinute: 0.05,  // +5% damage per minute
+  },
+
   // Meta progression (Phase 5 placeholder)
   meta: {
     goldPerKill: 0.2, // average gold per kill

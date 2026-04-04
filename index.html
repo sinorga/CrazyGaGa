@@ -34,6 +34,12 @@
     const game = new Game(canvas);
     const renderer = new Renderer(ctx, canvas);
 
+    // Wire damage effects
+    game.onPlayerDamage = (isBoss) => {
+      renderer.triggerDamageFlash();
+      renderer.triggerShake(isBoss ? 12 : 4);
+    };
+
     // Click/tap handler for UI
     // 'click' works on desktop; on mobile, touchstart preventDefault blocks click,
     // so we also listen for touchend to handle UI taps
@@ -69,6 +75,7 @@
         if (game.state === 'playing') {
           game.updatePlaying(FIXED_DT);
         }
+        renderer.updateEffects(FIXED_DT);
         accumulator -= FIXED_DT;
       }
 
@@ -83,16 +90,21 @@
         return;
       }
 
-      renderer.clear(game.camera);
-      renderer.drawMap(game.camera);
-      renderer.drawPickups(game.pickups, game.camera);
-      renderer.drawEnemies(game.enemies, game.camera);
-      renderer.drawProjectiles(game.projectiles, game.camera);
-      renderer.drawEnemyProjectiles(game.enemyProjectiles, game.camera);
-      renderer.drawOrbitWeapons(game.weaponManager.weapons, game.camera);
-      game.particles.render(ctx, game.camera);
-      renderer.drawPlayer(game.player, game.camera);
+      const cam = renderer.applyShake(game.camera);
+      renderer.clear(cam);
+      renderer.drawMap(cam);
+      renderer.drawPickups(game.pickups, cam);
+      renderer.drawEnemies(game.enemies, cam);
+      renderer.drawProjectiles(game.projectiles, cam);
+      renderer.drawEnemyProjectiles(game.enemyProjectiles, cam);
+      renderer.drawOrbitWeapons(game.weaponManager.weapons, cam);
+      game.particles.render(ctx, cam);
+      renderer.drawPlayer(game.player, cam);
+      renderer.drawDamageFlash();
       renderer.drawHUD(game.player, game.elapsed);
+      if (game.currentBoss) {
+        renderer.drawBossHPBar(game.currentBoss);
+      }
       renderer.drawJoystick(game.input);
 
       if (game.state === 'levelup') {

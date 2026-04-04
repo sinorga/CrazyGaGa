@@ -35,6 +35,9 @@ export class Player {
     this.kills = 0;
     this.skillLevels = {}; // { skillId: level }
 
+    // Passive stat tracking (for evolution checks)
+    this.passiveStats = {};
+
     // Facing direction (for rendering / aiming)
     this.facingX = 0;
     this.facingY = -1;
@@ -86,6 +89,8 @@ export class Player {
   }
 
   applyPassive(stat, value, valueType) {
+    this.passiveStats[stat] = (this.passiveStats[stat] || 0) + 1;
+
     if (valueType === 'flat') {
       switch (stat) {
         case 'maxHp':
@@ -173,6 +178,7 @@ export class Player {
     this.exp = 0;
     this.kills = 0;
     this.skillLevels = {};
+    this.passiveStats = {};
     this._percentBonuses = {};
   }
 }

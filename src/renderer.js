@@ -4,6 +4,14 @@ export class Renderer {
   constructor(ctx, canvas) {
     this.ctx = ctx;
     this.canvas = canvas;
+
+    // Screen shake
+    this.shakeIntensity = 0;
+    this.shakeOffsetX = 0;
+    this.shakeOffsetY = 0;
+
+    // Damage flash
+    this.damageFlashTimer = 0;
   }
 
   clear(camera) {
@@ -251,6 +259,78 @@ export class Renderer {
     ctx.textAlign = 'right';
     ctx.font = '12px monospace';
     ctx.fillText(`Kills: ${player.kills}`, this.canvas.width - 10, 46);
+  }
+
+  drawBossHPBar(boss) {
+    if (!boss || !boss.alive) return;
+    const ctx = this.ctx;
+    const barWidth = this.canvas.width * 0.6;
+    const barHeight = 14;
+    const barX = (this.canvas.width - barWidth) / 2;
+    const barY = 55;
+
+    // Background
+    ctx.fillStyle = '#222';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    // HP fill
+    const hpPercent = Math.max(0, boss.hp / boss.maxHp);
+    ctx.fillStyle = '#ff2222';
+    ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+
+    // Border
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+    // Boss name
+    ctx.fillStyle = '#ff6666';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(boss.typeDef.name, this.canvas.width / 2, barY - 4);
+  }
+
+  triggerShake(intensity) {
+    this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+  }
+
+  triggerDamageFlash() {
+    this.damageFlashTimer = 0.1;
+  }
+
+  updateEffects(dt) {
+    // Decay shake
+    if (this.shakeIntensity > 0) {
+      this.shakeOffsetX = (Math.random() - 0.5) * 2 * this.shakeIntensity;
+      this.shakeOffsetY = (Math.random() - 0.5) * 2 * this.shakeIntensity;
+      this.shakeIntensity *= 0.85; // decay
+      if (this.shakeIntensity < 0.5) {
+        this.shakeIntensity = 0;
+        this.shakeOffsetX = 0;
+        this.shakeOffsetY = 0;
+      }
+    }
+
+    // Decay damage flash
+    if (this.damageFlashTimer > 0) {
+      this.damageFlashTimer -= dt;
+    }
+  }
+
+  applyShake(camera) {
+    return {
+      x: camera.x + this.shakeOffsetX,
+      y: camera.y + this.shakeOffsetY,
+    };
+  }
+
+  drawDamageFlash() {
+    if (this.damageFlashTimer > 0) {
+      const ctx = this.ctx;
+      const alpha = Math.min(0.3, this.damageFlashTimer / 0.1 * 0.3);
+      ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
   }
 
   drawJoystick(input) {

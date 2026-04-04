@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { getEnemyType } from './data/enemies.js';
 
 export class Enemy {
   constructor(x, y, typeDef) {
@@ -26,11 +27,11 @@ export class Enemy {
     }
   }
 
-  update(playerPos, dt, enemyProjectiles) {
+  update(playerPos, dt, enemyProjectiles, spawnedMinions) {
     if (!this.alive) return;
     const behavior = behaviors[this.type];
     if (behavior) {
-      behavior(this, playerPos, dt, enemyProjectiles);
+      behavior(this, playerPos, dt, enemyProjectiles, spawnedMinions);
     }
   }
 }
@@ -91,7 +92,7 @@ export const behaviors = {
     behaviors.charger(enemy, playerPos, dt);
   },
 
-  summoner(enemy, playerPos, dt) {
+  summoner(enemy, playerPos, dt, enemyProjectiles, spawnedMinions) {
     const dx = playerPos.x - enemy.x;
     const dy = playerPos.y - enemy.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -104,8 +105,24 @@ export const behaviors = {
       enemy.y += (dy / dist) * enemy.speed * dt * moveDir;
     }
 
-    // Summoning handled in game.js via timer
+    // Summon timer
     if (!enemy.summonTimer) enemy.summonTimer = enemy.typeDef.behavior?.summonInterval || 4;
     enemy.summonTimer -= dt;
+
+    // Spawn minions when timer expires
+    if (enemy.summonTimer <= 0 && spawnedMinions) {
+      const b = enemy.typeDef.behavior;
+      const minionType = getEnemyType(b.summonId);
+      if (minionType) {
+        for (let i = 0; i < (b.summonCount || 1); i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const spawnDist = 30 + Math.random() * 40;
+          const mx = enemy.x + Math.cos(angle) * spawnDist;
+          const my = enemy.y + Math.sin(angle) * spawnDist;
+          spawnedMinions.push(new Enemy(mx, my, minionType));
+        }
+      }
+      enemy.summonTimer = b.summonInterval || 4;
+    }
   },
 };

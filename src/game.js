@@ -8,7 +8,9 @@ import { Pickup } from './pickup.js';
 import { SpatialHash, circlesOverlap, distance } from './collision.js';
 import { ParticleSystem } from './particles.js';
 import { getRandomSkillChoices, getSkillDefinition } from './data/skills.js';
-import { getEnemyType } from './data/enemies.js';
+import { getEnemyType, getBossForPhase } from './data/enemies.js';
+import { updateBossAI } from './boss.js';
+import { canEvolve, getEvolutionRecipe } from './data/evolutions.js';
 
 export class Game {
   constructor(canvas) {
@@ -39,6 +41,14 @@ export class Game {
     this.skillChoices = [];
     this.autoAttackDelay = 0;
 
+    // Boss state
+    this.currentBoss = null;
+    this.bossPhase = 0;
+    this.bossSpawnTimer = CONFIG.waves.bossInterval;
+
+    // Damage events for renderer
+    this.onPlayerDamage = null; // callback: (isBoss) => {}
+
     // Give player starting weapon
     this._startingWeapon = 'arrow';
   }
@@ -54,6 +64,9 @@ export class Game {
     this.spawner.reset();
     this.weaponManager.reset();
     this.weaponManager.addWeapon(this._startingWeapon);
+    this.currentBoss = null;
+    this.bossPhase = 0;
+    this.bossSpawnTimer = CONFIG.waves.bossInterval;
     this.particles = new ParticleSystem();
     this.skillChoices = [];
     this.autoAttackDelay = 0;
@@ -66,10 +79,36 @@ export class Game {
   triggerLevelUp() {
     if (this.state !== 'playing') return;
     this.state = 'levelup';
-    this.skillChoices = getRandomSkillChoices(
-      CONFIG.leveling.choiceCount,
-      this.player.skillLevels
-    );
+
+    // Check for evolution eligibility
+    const evolutionChoices = [];
+    for (const weapon of this.weaponManager.weapons) {
+      if (weapon.evolved) continue;
+      if (canEvolve(weapon.id, weapon.level, this.player.passiveStats)) {
+        const recipe = getEvolutionRecipe(weapon.id);
+        if (recipe) {
+          evolutionChoices.push({
+            id: recipe.evolvedWeaponId,
+            name: recipe.name,
+            description: recipe.description,
+            icon: '✨',
+            category: 'evolution',
+            baseWeaponId: recipe.baseWeaponId,
+            evolvedWeaponId: recipe.evolvedWeaponId,
+          });
+        }
+      }
+    }
+
+    if (evolutionChoices.length > 0) {
+      // Offer evolutions as priority choices
+      this.skillChoices = evolutionChoices.slice(0, CONFIG.leveling.choiceCount);
+    } else {
+      this.skillChoices = getRandomSkillChoices(
+        CONFIG.leveling.choiceCount,
+        this.player.skillLevels
+      );
+    }
   }
 
   selectSkill(index) {
@@ -80,7 +119,11 @@ export class Game {
     // Apply skill
     this.player.skillLevels[skill.id] = (this.player.skillLevels[skill.id] || 0) + 1;
 
-    if (skill.category === 'weapon') {
+    if (skill.category === 'evolution') {
+      // Replace base weapon with evolved form
+      this.weaponManager.weapons = this.weaponManager.weapons.filter(w => w.id !== skill.baseWeaponId);
+      this.weaponManager.addWeapon(skill.evolvedWeaponId);
+    } else if (skill.category === 'weapon') {
       this.weaponManager.addWeapon(skill.weaponId);
     } else if (skill.category === 'passive') {
       this.player.applyPassive(skill.stat, skill.value, skill.valueType);
@@ -119,17 +162,45 @@ export class Game {
 
     this.player.update(dt);
 
-    // Wave spawning
-    const newEnemies = this.spawner.update(dt, this.player, this.enemies.length);
-    this.enemies.push(...newEnemies);
+    // Boss spawn timer
+    if (!this.currentBoss) {
+      this.bossSpawnTimer -= dt;
+      if (this.bossSpawnTimer <= 0) {
+        this.bossPhase++;
+        const bossDef = getBossForPhase(this.bossPhase);
+        if (bossDef) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist = CONFIG.waves.spawnDistanceMin;
+          const bx = this.player.x + Math.cos(angle) * dist;
+          const by = this.player.y + Math.sin(angle) * dist;
+          this.currentBoss = new Enemy(bx, by, bossDef);
+          this.enemies.push(this.currentBoss);
+        }
+        this.bossSpawnTimer = CONFIG.waves.bossInterval;
+      }
+    }
+
+    // Wave spawning (paused during boss fight)
+    if (!this.currentBoss) {
+      const newEnemies = this.spawner.update(dt, this.player, this.enemies.length);
+      this.enemies.push(...newEnemies);
+    }
 
     // Weapon updates
     const canAttack = !isMoving && this.autoAttackDelay <= 0;
     this.weaponManager.update(dt, this.player, this.enemies, this.projectiles, isMoving && !canAttack);
 
     // Update enemies
+    const spawnedMinions = [];
     for (const enemy of this.enemies) {
-      enemy.update(this.player, dt, this.enemyProjectiles);
+      if (enemy.type === 'boss') {
+        updateBossAI(enemy, this.player, dt, this.enemyProjectiles, spawnedMinions);
+      } else {
+        enemy.update(this.player, dt, this.enemyProjectiles, spawnedMinions);
+      }
+    }
+    if (spawnedMinions.length > 0) {
+      this.enemies.push(...spawnedMinions);
     }
 
     // Update projectiles
@@ -257,6 +328,7 @@ export class Game {
         if (circlesOverlap(this.player, enemy)) {
           this.player.takeDamage(enemy.damage);
           this.particles.emit(this.player.x, this.player.y, 6, '#ff4444', { speedMax: 100, lifetime: 0.3 });
+          if (this.onPlayerDamage) this.onPlayerDamage(enemy.type === 'boss');
           break;
         }
       }
@@ -274,6 +346,7 @@ export class Game {
           this.player.takeDamage(proj.damage);
           proj.alive = false;
           this.particles.emit(this.player.x, this.player.y, 6, '#ff4444', { speedMax: 100, lifetime: 0.3 });
+          if (this.onPlayerDamage) this.onPlayerDamage(false);
         }
       }
     }
@@ -290,6 +363,11 @@ export class Game {
 
   _onEnemyDeath(enemy) {
     this.player.kills++;
+
+    // Boss death: resume regular waves
+    if (this.currentBoss === enemy) {
+      this.currentBoss = null;
+    }
 
     // Drop EXP gems
     this.pickups.push(new Pickup(enemy.x, enemy.y, enemy.exp));

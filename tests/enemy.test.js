@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Enemy, behaviors } from '../src/enemy.js';
+import { getEnemyType } from '../src/data/enemies.js';
 
 describe('Enemy', () => {
   let enemy;
@@ -123,6 +124,83 @@ describe('Enemy', () => {
       const startX = enemy.x;
       behaviors.exploder(enemy, playerPos, 1.0);
       expect(enemy.x).toBeGreaterThan(startX);
+    });
+  });
+
+  describe('summoner behavior', () => {
+    let summoner;
+    const summonerDef = {
+      id: 'necromancer', name: '亡靈巫師', type: 'summoner',
+      radius: 15, hp: 40, speed: 30, damage: 5,
+      color: '#22aa88', exp: 8,
+      behavior: {
+        summonId: 'slime',
+        summonCount: 3,
+        summonInterval: 4,
+        preferredDistance: 250,
+      },
+    };
+
+    beforeEach(() => {
+      summoner = new Enemy(200, 200, summonerDef);
+    });
+
+    it('moves away from player when too close', () => {
+      summoner.x = 490;
+      summoner.y = 500;
+      const spawnedMinions = [];
+      behaviors.summoner(summoner, playerPos, 1.0, null, spawnedMinions);
+      expect(summoner.x).toBeLessThan(490);
+    });
+
+    it('initializes summon timer from behavior config', () => {
+      const spawnedMinions = [];
+      behaviors.summoner(summoner, playerPos, 0, null, spawnedMinions);
+      expect(summoner.summonTimer).toBe(4);
+    });
+
+    it('spawns minions when summon timer expires', () => {
+      summoner.summonTimer = 0.1;
+      const spawnedMinions = [];
+      behaviors.summoner(summoner, playerPos, 0.2, null, spawnedMinions);
+      expect(spawnedMinions.length).toBe(3); // summonCount
+    });
+
+    it('spawns correct enemy type as minions', () => {
+      summoner.summonTimer = 0.1;
+      const spawnedMinions = [];
+      behaviors.summoner(summoner, playerPos, 0.2, null, spawnedMinions);
+      for (const minion of spawnedMinions) {
+        expect(minion.type).toBe('charger'); // slime is a charger
+        expect(minion.typeDef.id).toBe('slime');
+      }
+    });
+
+    it('spawns minions near summoner position', () => {
+      summoner.summonTimer = 0.1;
+      const spawnedMinions = [];
+      behaviors.summoner(summoner, playerPos, 0.2, null, spawnedMinions);
+      for (const minion of spawnedMinions) {
+        const dx = minion.x - summoner.x;
+        const dy = minion.y - summoner.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        expect(dist).toBeLessThan(80); // spawned within reasonable range
+      }
+    });
+
+    it('resets summon timer after spawning', () => {
+      summoner.summonTimer = 0.1;
+      const spawnedMinions = [];
+      behaviors.summoner(summoner, playerPos, 0.2, null, spawnedMinions);
+      expect(summoner.summonTimer).toBeCloseTo(summonerDef.behavior.summonInterval, 1);
+    });
+
+    it('does not spawn minions when timer is still counting down', () => {
+      summoner.summonTimer = 2.0;
+      const spawnedMinions = [];
+      behaviors.summoner(summoner, playerPos, 0.5, null, spawnedMinions);
+      expect(spawnedMinions.length).toBe(0);
+      expect(summoner.summonTimer).toBeCloseTo(1.5);
     });
   });
 });
