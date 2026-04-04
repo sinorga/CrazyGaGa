@@ -1,5 +1,7 @@
 import { CONFIG } from './config.js';
 import { SETTINGS_DEFS } from './settings.js';
+import { UPGRADE_DEFINITIONS } from './data/upgrades.js';
+import { CHARACTER_DEFINITIONS } from './data/characters.js';
 
 export class Renderer {
   constructor(ctx, canvas) {
@@ -208,7 +210,7 @@ export class Renderer {
     }
   }
 
-  drawHUD(player, elapsed) {
+  drawHUD(player, elapsed, runGold) {
     const ctx = this.ctx;
     const ui = CONFIG.ui;
 
@@ -260,6 +262,10 @@ export class Renderer {
     ctx.textAlign = 'right';
     ctx.font = '12px monospace';
     ctx.fillText(`Kills: ${player.kills}`, this.canvas.width - 10, 46);
+
+    // Gold
+    ctx.fillStyle = '#ffdd44';
+    ctx.fillText(`Gold: ${Math.floor(runGold || 0)}`, this.canvas.width - 10, 62);
   }
 
   drawBossHPBar(boss) {
@@ -403,7 +409,7 @@ export class Renderer {
     }
   }
 
-  drawGameOver(player, elapsed, canvas) {
+  drawGameOver(player, elapsed, canvas, runGold) {
     const ctx = this.ctx;
 
     // Overlay
@@ -427,13 +433,17 @@ export class Renderer {
     ctx.fillText(`擊殺數: ${player.kills}`, cx, canvas.height / 2 + 5);
     ctx.fillText(`等級: ${player.level}`, cx, canvas.height / 2 + 40);
 
+    // Gold earned
+    ctx.fillStyle = '#ffdd44';
+    ctx.fillText(`獲得金幣: ${Math.floor(runGold || 0)}`, cx, canvas.height / 2 + 75);
+
     // Restart prompt
     ctx.fillStyle = '#aaaaaa';
     ctx.font = '16px monospace';
-    ctx.fillText('點擊重新開始', cx, canvas.height / 2 + 100);
+    ctx.fillText('點擊重新開始', cx, canvas.height / 2 + 120);
   }
 
-  drawMenu(canvas) {
+  drawMenu(canvas, meta) {
     const ctx = this.ctx;
     const cx = canvas.width / 2;
 
@@ -451,31 +461,213 @@ export class Renderer {
     ctx.font = '16px monospace';
     ctx.fillText('Roguelite 割草生存', cx, canvas.height / 2 - 20);
 
+    // Selected character & gold
+    if (meta) {
+      ctx.fillStyle = '#ffdd44';
+      ctx.font = '14px monospace';
+      ctx.fillText(`金幣: ${meta.gold}`, cx, canvas.height / 2 + 15);
+      const charDef = CHARACTER_DEFINITIONS.find(c => c.id === meta.selected);
+      if (charDef) {
+        ctx.fillStyle = charDef.color;
+        ctx.fillText(`角色: ${charDef.name}`, cx, canvas.height / 2 + 35);
+      }
+    }
+
     // Start prompt
     ctx.fillStyle = '#ffffff';
     ctx.font = '18px monospace';
-    ctx.fillText('點擊開始遊戲', cx, canvas.height / 2 + 40);
+    ctx.fillText('點擊開始遊戲', cx, canvas.height / 2 + 65);
 
     // Controls
     ctx.fillStyle = '#666688';
     ctx.font = '13px monospace';
-    ctx.fillText('WASD / 虛擬搖桿 移動', cx, canvas.height / 2 + 90);
-    ctx.fillText('靜止時自動攻擊', cx, canvas.height / 2 + 112);
+    ctx.fillText('WASD / 虛擬搖桿 移動', cx, canvas.height / 2 + 100);
+    ctx.fillText('靜止時自動攻擊', cx, canvas.height / 2 + 118);
 
-    // Settings button
-    const btnW = 120;
+    // Row of 3 buttons: 商店, 角色, 設定
+    const btnW = 90;
     const btnH = 40;
-    const btnX = cx - btnW / 2;
+    const gap = 15;
+    const totalW = btnW * 3 + gap * 2;
+    const startX = cx - totalW / 2;
     const btnY = canvas.height / 2 + 140;
-    ctx.fillStyle = '#2a2a4e';
-    ctx.fillRect(btnX, btnY, btnW, btnH);
-    ctx.strokeStyle = '#6666aa';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(btnX, btnY, btnW, btnH);
+    const labels = ['商店', '角色', '設定'];
+
+    for (let i = 0; i < 3; i++) {
+      const bx = startX + i * (btnW + gap);
+      ctx.fillStyle = '#2a2a4e';
+      ctx.fillRect(bx, btnY, btnW, btnH);
+      ctx.strokeStyle = '#6666aa';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, btnY, btnW, btnH);
+      ctx.fillStyle = '#aaaacc';
+      ctx.font = '16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(labels[i], bx + btnW / 2, btnY + 26);
+    }
+  }
+
+  drawShopPage(canvas, meta) {
+    const ctx = this.ctx;
+    const cx = canvas.width / 2;
+
+    ctx.fillStyle = CONFIG.canvas.backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Back button
     ctx.fillStyle = '#aaaacc';
     ctx.font = '16px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← 返回', 15, 32);
+
+    // Title
+    ctx.fillStyle = '#00d4ff';
+    ctx.font = 'bold 24px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('設定', cx, btnY + 26);
+    ctx.fillText('商店', cx, 60);
+
+    // Gold display
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = '16px monospace';
+    ctx.fillText(`金幣: ${meta.gold}`, cx, 82);
+
+    // Upgrade rows
+    const rowH = 60;
+    const startY = 100;
+    const btnW = 60;
+    const btnH = 30;
+    const btnX = cx + 80;
+
+    for (let i = 0; i < UPGRADE_DEFINITIONS.length; i++) {
+      const def = UPGRADE_DEFINITIONS[i];
+      const level = meta.upgrades[def.id] || 0;
+      const y = startY + i * rowH;
+      const maxed = level >= def.maxLevel;
+      const cost = maxed ? null : def.costs[level];
+      const canAfford = !maxed && meta.gold >= cost;
+
+      // Name
+      ctx.fillStyle = '#ccccee';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(def.name, cx - 160, y + 18);
+
+      // Description
+      ctx.fillStyle = '#8888aa';
+      ctx.font = '11px monospace';
+      ctx.fillText(def.description, cx - 160, y + 35);
+
+      // Level
+      ctx.fillStyle = '#aaaacc';
+      ctx.font = '13px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Lv.${level}/${def.maxLevel}`, cx + 40, y + 25);
+
+      // Buy button
+      const by = y + 15;
+      if (maxed) {
+        ctx.fillStyle = '#333355';
+        ctx.fillRect(btnX, by, btnW, btnH);
+        ctx.fillStyle = '#666688';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('MAX', btnX + btnW / 2, by + 20);
+      } else {
+        ctx.fillStyle = canAfford ? '#2a4e2a' : '#4e2a2a';
+        ctx.fillRect(btnX, by, btnW, btnH);
+        ctx.strokeStyle = canAfford ? '#44aa44' : '#aa4444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(btnX, by, btnW, btnH);
+        ctx.fillStyle = canAfford ? '#44dd44' : '#dd4444';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${cost}g`, btnX + btnW / 2, by + 20);
+      }
+    }
+  }
+
+  drawCharacterSelect(canvas, meta) {
+    const ctx = this.ctx;
+    const cx = canvas.width / 2;
+
+    ctx.fillStyle = CONFIG.canvas.backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Back button
+    ctx.fillStyle = '#aaaacc';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← 返回', 15, 32);
+
+    // Title
+    ctx.fillStyle = '#00d4ff';
+    ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('選擇角色', cx, 60);
+
+    // Gold display
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = '16px monospace';
+    ctx.fillText(`金幣: ${meta.gold}`, cx, 82);
+
+    // Character cards
+    const cardH = 100;
+    const gap = 15;
+    const startY = 100;
+    const cardW = Math.min(320, canvas.width - 40);
+    const cardX = cx - cardW / 2;
+
+    for (let i = 0; i < CHARACTER_DEFINITIONS.length; i++) {
+      const def = CHARACTER_DEFINITIONS[i];
+      const y = startY + i * (cardH + gap);
+      const unlocked = meta.unlocked.includes(def.id);
+      const selected = meta.selected === def.id;
+
+      // Card background
+      ctx.fillStyle = selected ? '#2a2a5e' : '#1e1e3e';
+      ctx.fillRect(cardX, y, cardW, cardH);
+      ctx.strokeStyle = selected ? '#6688ff' : (unlocked ? '#4444aa' : '#333355');
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cardX, y, cardW, cardH);
+
+      // Color dot
+      ctx.fillStyle = def.color;
+      ctx.beginPath();
+      ctx.arc(cardX + 25, y + 30, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Name
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(def.name, cardX + 45, y + 35);
+
+      // Description
+      ctx.fillStyle = '#8888aa';
+      ctx.font = '12px monospace';
+      ctx.fillText(def.description, cardX + 45, y + 55);
+
+      // Stats
+      ctx.fillStyle = '#aaaacc';
+      ctx.font = '11px monospace';
+      ctx.fillText(`HP:${def.baseStats.maxHp} SPD:${def.baseStats.speed}`, cardX + 45, y + 75);
+
+      // Status
+      ctx.textAlign = 'right';
+      if (!unlocked) {
+        ctx.fillStyle = '#ff6666';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText(`🔒 ${def.unlockCost}g`, cardX + cardW - 15, y + 40);
+      } else if (selected) {
+        ctx.fillStyle = '#66ff66';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText('✓ 使用中', cardX + cardW - 15, y + 40);
+      } else {
+        ctx.fillStyle = '#aaaacc';
+        ctx.font = '14px monospace';
+        ctx.fillText('點擊選擇', cardX + cardW - 15, y + 40);
+      }
+    }
   }
 
   drawSettingsPage(canvas, settingsValues, scrollY) {

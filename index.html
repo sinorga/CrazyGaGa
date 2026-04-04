@@ -115,11 +115,19 @@
 
     function render() {
       if (game.state === 'menu') {
-        renderer.drawMenu(canvas);
+        renderer.drawMenu(canvas, game.meta);
         return;
       }
       if (game.state === 'settings') {
         renderer.drawSettingsPage(canvas, game.settingsValues, game.settingsScroll);
+        return;
+      }
+      if (game.state === 'shop') {
+        renderer.drawShopPage(canvas, game.meta);
+        return;
+      }
+      if (game.state === 'characters') {
+        renderer.drawCharacterSelect(canvas, game.meta);
         return;
       }
 
@@ -134,7 +142,7 @@
       game.particles.render(ctx, cam);
       renderer.drawPlayer(game.player, cam);
       renderer.drawDamageFlash();
-      renderer.drawHUD(game.player, game.elapsed);
+      renderer.drawHUD(game.player, game.elapsed, game.runGold);
       if (game.currentBoss) {
         renderer.drawBossHPBar(game.currentBoss);
       }
@@ -144,7 +152,7 @@
         renderer.drawLevelUpPanel(game.skillChoices, canvas);
       }
       if (game.state === 'gameover') {
-        renderer.drawGameOver(game.player, game.elapsed, canvas);
+        renderer.drawGameOver(game.player, game.elapsed, canvas, game.runGold);
       }
     }
 

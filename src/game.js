@@ -12,6 +12,9 @@ import { getEnemyType, getBossForPhase } from './data/enemies.js';
 import { updateBossAI } from './boss.js';
 import { canEvolve, getEvolutionRecipe } from './data/evolutions.js';
 import { SETTINGS_DEFS, loadSettings, saveSettings, resetSettings, getDefaults, applyUserSettings } from './settings.js';
+import { loadMeta, saveMeta, purchaseUpgrade, unlockCharacter, selectCharacter, getUpgradeBonus } from './meta.js';
+import { CHARACTER_DEFINITIONS, getCharacterDefinition } from './data/characters.js';
+import { UPGRADE_DEFINITIONS } from './data/upgrades.js';
 
 export class Game {
   constructor(canvas) {
@@ -19,7 +22,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'settings' | 'playing' | 'levelup' | 'gameover'
+    this.state = 'menu'; // 'menu' | 'settings' | 'shop' | 'characters' | 'playing' | 'levelup' | 'gameover'
     this.elapsed = 0;
 
     // Entities
@@ -55,6 +58,11 @@ export class Game {
     // Damage events for renderer
     this.onPlayerDamage = null; // callback: (isBoss) => {}
 
+    // Meta progression
+    this.meta = loadMeta();
+    this.runGold = 0;
+    this.goldRateMultiplier = 1;
+
     // Give player starting weapon
     this._startingWeapon = 'arrow';
   }
@@ -62,6 +70,8 @@ export class Game {
   startGame() {
     this.state = 'playing';
     this.elapsed = 0;
+    this.runGold = 0;
+    this.meta = loadMeta();
     this.player.reset(CONFIG.map.width / 2, CONFIG.map.height / 2);
     this.enemies = [];
     this.projectiles = [];
@@ -69,6 +79,37 @@ export class Game {
     this.pickups = [];
     this.spawner.reset();
     this.weaponManager.reset();
+
+    // Apply character stats
+    const charDef = getCharacterDefinition(this.meta.selected);
+    if (charDef) {
+      this.player.maxHp = charDef.baseStats.maxHp;
+      this.player.hp = charDef.baseStats.maxHp;
+      this.player.speed = charDef.baseStats.speed;
+      CONFIG.player.color = charDef.color;
+      this._startingWeapon = charDef.startingWeapon;
+    }
+
+    // Apply permanent upgrades
+    const hpBonus = getUpgradeBonus(this.meta, 'maxHp');
+    this.player.maxHp += hpBonus.flat;
+    this.player.hp = this.player.maxHp;
+
+    const speedBonus = getUpgradeBonus(this.meta, 'speed');
+    this.player.speed += speedBonus.flat;
+
+    const dmgBonus = getUpgradeBonus(this.meta, 'damage');
+    this.player.damageMultiplier = 1 + dmgBonus.percent;
+
+    const armorBonus = getUpgradeBonus(this.meta, 'armor');
+    this.player.armor = armorBonus.flat;
+
+    const expBonus = getUpgradeBonus(this.meta, 'exp');
+    this.player.expMultiplier = 1 + expBonus.percent;
+
+    const goldBonus = getUpgradeBonus(this.meta, 'goldRate');
+    this.goldRateMultiplier = 1 + goldBonus.percent;
+
     this.weaponManager.addWeapon(this._startingWeapon);
     // Apply cooldown multiplier from settings
     const cdMult = this.settingsValues?.cooldownMultiplier ?? 1.0;
@@ -154,6 +195,8 @@ export class Game {
 
   triggerGameOver() {
     this.state = 'gameover';
+    this.meta.gold += Math.floor(this.runGold);
+    saveMeta(this.meta);
   }
 
   // Called by game loop each fixed timestep
@@ -373,6 +416,7 @@ export class Game {
 
   _onEnemyDeath(enemy) {
     this.player.kills++;
+    this.runGold += (CONFIG.meta?.goldPerKill ?? 1) * this.goldRateMultiplier;
 
     // Boss death: resume regular waves
     if (this.currentBoss === enemy) {
@@ -444,19 +488,47 @@ export class Game {
   // Handle click/tap events for UI
   handleClick(screenX, screenY) {
     if (this.state === 'menu') {
-      // Check settings button (bottom center)
-      const settingsBtnW = 120;
-      const settingsBtnH = 40;
-      const settingsBtnX = this.canvas.width / 2 - settingsBtnW / 2;
-      const settingsBtnY = this.canvas.height / 2 + 140;
-      if (screenX >= settingsBtnX && screenX <= settingsBtnX + settingsBtnW &&
-          screenY >= settingsBtnY && screenY <= settingsBtnY + settingsBtnH) {
+      // Row of 3 buttons: 商店, 角色, 設定
+      const btnW = 90;
+      const btnH = 40;
+      const gap = 15;
+      const totalW = btnW * 3 + gap * 2;
+      const startX = this.canvas.width / 2 - totalW / 2;
+      const btnY = this.canvas.height / 2 + 140;
+
+      // Shop button
+      if (screenX >= startX && screenX <= startX + btnW &&
+          screenY >= btnY && screenY <= btnY + btnH) {
+        this.meta = loadMeta();
+        this.state = 'shop';
+        return;
+      }
+      // Characters button
+      const charX = startX + btnW + gap;
+      if (screenX >= charX && screenX <= charX + btnW &&
+          screenY >= btnY && screenY <= btnY + btnH) {
+        this.meta = loadMeta();
+        this.state = 'characters';
+        return;
+      }
+      // Settings button
+      const setX = startX + (btnW + gap) * 2;
+      if (screenX >= setX && screenX <= setX + btnW &&
+          screenY >= btnY && screenY <= btnY + btnH) {
         this.settingsValues = loadSettings() || getDefaults();
         this.settingsScroll = 0;
         this.state = 'settings';
         return;
       }
       this.startGame();
+      return;
+    }
+    if (this.state === 'shop') {
+      this._handleShopClick(screenX, screenY);
+      return;
+    }
+    if (this.state === 'characters') {
+      this._handleCharactersClick(screenX, screenY);
       return;
     }
     if (this.state === 'settings') {
@@ -522,6 +594,56 @@ export class Game {
         this.settingsValues[def.key] = Math.min(def.max, Math.max(def.min, parseFloat(snapped.toFixed(4))));
         saveSettings(this.settingsValues);
         applyUserSettings();
+        return;
+      }
+    }
+  }
+
+  _handleShopClick(screenX, screenY) {
+    // Back button (top-left)
+    if (screenX < 80 && screenY < 50) {
+      this.state = 'menu';
+      return;
+    }
+
+    // Purchase upgrade buttons — match renderer layout
+    const rowH = 60;
+    const startY = 100;
+    const btnW = 60;
+    const btnH = 30;
+    const btnX = this.canvas.width / 2 + 80;
+
+    for (let i = 0; i < UPGRADE_DEFINITIONS.length; i++) {
+      const by = startY + i * rowH + 15;
+      if (screenX >= btnX && screenX <= btnX + btnW &&
+          screenY >= by && screenY <= by + btnH) {
+        purchaseUpgrade(this.meta, UPGRADE_DEFINITIONS[i].id);
+        return;
+      }
+    }
+  }
+
+  _handleCharactersClick(screenX, screenY) {
+    // Back button (top-left)
+    if (screenX < 80 && screenY < 50) {
+      this.state = 'menu';
+      return;
+    }
+
+    // Character cards — match renderer layout
+    const cardH = 100;
+    const gap = 15;
+    const startY = 100;
+
+    for (let i = 0; i < CHARACTER_DEFINITIONS.length; i++) {
+      const cy = startY + i * (cardH + gap);
+      if (screenY >= cy && screenY <= cy + cardH) {
+        const charDef = CHARACTER_DEFINITIONS[i];
+        if (this.meta.unlocked.includes(charDef.id)) {
+          selectCharacter(this.meta, charDef.id);
+        } else {
+          unlockCharacter(this.meta, charDef.id);
+        }
         return;
       }
     }
