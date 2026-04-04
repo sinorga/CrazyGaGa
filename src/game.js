@@ -259,11 +259,9 @@ export class Game {
       this.nextBossKills += CONFIG.waves.bossKillThreshold;
     }
 
-    // Wave spawning (paused during boss fight)
-    if (!this.currentBoss) {
-      const newEnemies = this.spawner.update(dt, this.player, this.enemies.length);
-      this.enemies.push(...newEnemies);
-    }
+    // Wave spawning (reduced during boss fight, not paused)
+    const newEnemies = this.spawner.update(dt, this.player, this.enemies.length);
+    this.enemies.push(...newEnemies);
 
     // Weapon updates
     const canAttack = !isMoving && this.autoAttackDelay <= 0;

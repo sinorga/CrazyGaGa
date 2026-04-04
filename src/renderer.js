@@ -350,6 +350,47 @@ export class Renderer {
     ctx.fillText(boss.typeDef.name, this.canvas.width / 2, barY - 4);
   }
 
+  drawBossIndicator(boss, camera) {
+    if (!boss || !boss.alive) return;
+    const ctx = this.ctx;
+    const sx = boss.x - camera.x;
+    const sy = boss.y - camera.y;
+    const margin = 40;
+
+    // Only show indicator if boss is off-screen
+    if (sx >= -margin && sx <= this.canvas.width + margin &&
+        sy >= -margin && sy <= this.canvas.height + margin) return;
+
+    // Calculate direction from screen center to boss
+    const cx = this.canvas.width / 2;
+    const cy = this.canvas.height / 2;
+    const angle = Math.atan2(sy - cy, sx - cx);
+
+    // Position arrow at screen edge
+    const edgeX = Math.max(30, Math.min(this.canvas.width - 30, cx + Math.cos(angle) * (this.canvas.width / 2 - 40)));
+    const edgeY = Math.max(80, Math.min(this.canvas.height - 30, cy + Math.sin(angle) * (this.canvas.height / 2 - 40)));
+
+    // Draw arrow
+    ctx.save();
+    ctx.translate(edgeX, edgeY);
+    ctx.rotate(angle);
+    ctx.fillStyle = '#ff2222';
+    ctx.beginPath();
+    ctx.moveTo(12, 0);
+    ctx.lineTo(-6, -8);
+    ctx.lineTo(-6, 8);
+    ctx.closePath();
+    ctx.fill();
+
+    // Pulsing glow
+    ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.005) * 0.3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   drawBossEntrance(canvas, bossEntrance) {
     if (!bossEntrance) return;
     const ctx = this.ctx;

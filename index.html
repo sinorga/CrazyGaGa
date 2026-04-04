@@ -147,6 +147,7 @@
       renderer.drawHUD(game.player, game.elapsed, game.runGold, game.player.skillLevels);
       if (game.currentBoss) {
         renderer.drawBossHPBar(game.currentBoss);
+        renderer.drawBossIndicator(game.currentBoss, cam);
       }
       if (game.bossEntrance) {
         renderer.drawBossEntrance(canvas, game.bossEntrance);
