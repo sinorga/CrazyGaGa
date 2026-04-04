@@ -1,4 +1,6 @@
 import { CONFIG } from './config.js';
+import { getConfig, getRandomSkillChoices, getSkillDef as getSkillDefinition, getEnemyType, getBossForPhase, getCharacterDef as getCharacterDefinition, getUpgradeDefs, getCharacterDefs, reloadCache } from './gameConfig.js';
+import { createConfigEditorState, handleClick as ceHandleClick, handleScroll as ceHandleScroll, buildFields as ceBuildFields, cleanup as ceCleanup } from './configEditor.js';
 import { Input } from './input.js';
 import { Player } from './player.js';
 import { Enemy } from './enemy.js';
@@ -7,14 +9,10 @@ import { WeaponManager } from './weapons.js';
 import { Pickup } from './pickup.js';
 import { SpatialHash, circlesOverlap, distance } from './collision.js';
 import { ParticleSystem } from './particles.js';
-import { getRandomSkillChoices, getSkillDefinition } from './data/skills.js';
-import { getEnemyType, getBossForPhase } from './data/enemies.js';
 import { updateBossAI } from './boss.js';
 import { canEvolve, getEvolutionRecipe } from './data/evolutions.js';
 import { SETTINGS_DEFS, loadSettings, saveSettings, resetSettings, getDefaults, applyUserSettings } from './settings.js';
 import { loadMeta, saveMeta, purchaseUpgrade, unlockCharacter, selectCharacter, getUpgradeBonus } from './meta.js';
-import { CHARACTER_DEFINITIONS, getCharacterDefinition } from './data/characters.js';
-import { UPGRADE_DEFINITIONS } from './data/upgrades.js';
 
 export class Game {
   constructor(canvas) {
@@ -22,7 +20,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'settings' | 'shop' | 'characters' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory'
+    this.state = 'menu'; // 'menu' | 'settings' | 'shop' | 'characters' | 'config_editor' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory'
     this.elapsed = 0;
 
     // Entities
@@ -67,11 +65,15 @@ export class Game {
     this.runGold = 0;
     this.goldRateMultiplier = 1;
 
+    // Config editor state (lazy-initialized)
+    this.configEditorState = null;
+
     // Give player starting weapon
     this._startingWeapon = 'arrow';
   }
 
   startGame() {
+    reloadCache(); // apply any config overrides before run starts
     this.state = 'playing';
     this.elapsed = 0;
     this.runGold = 0;
@@ -551,10 +553,10 @@ export class Game {
   handleClick(screenX, screenY) {
     if (this.state === 'menu') {
       // Row of 3 buttons: 商店, 角色, 設定
-      const btnW = 90;
+      const btnW = 80;
       const btnH = 40;
-      const gap = 15;
-      const totalW = btnW * 3 + gap * 2;
+      const gap = 10;
+      const totalW = btnW * 4 + gap * 3;
       const startX = this.canvas.width / 2 - totalW / 2;
       const btnY = this.canvas.height / 2 + 140;
 
@@ -582,7 +584,22 @@ export class Game {
         this.state = 'settings';
         return;
       }
+      // Config editor button
+      const cfgX = startX + (btnW + gap) * 3;
+      if (screenX >= cfgX && screenX <= cfgX + btnW &&
+          screenY >= btnY && screenY <= btnY + btnH) {
+        this.configEditorState = createConfigEditorState();
+        this.state = 'config_editor';
+        return;
+      }
       this.startGame();
+      return;
+    }
+    if (this.state === 'config_editor') {
+      ceHandleClick(this.configEditorState, screenX, screenY, this.canvas, () => {
+        ceCleanup(this.configEditorState);
+        this.state = 'menu';
+      });
       return;
     }
     if (this.state === 'shop') {
@@ -696,11 +713,12 @@ export class Game {
     const btnH = 30;
     const btnX = this.canvas.width / 2 + 80;
 
-    for (let i = 0; i < UPGRADE_DEFINITIONS.length; i++) {
+    const upgradeDefs = getUpgradeDefs();
+    for (let i = 0; i < upgradeDefs.length; i++) {
       const by = startY + i * rowH + 15;
       if (screenX >= btnX && screenX <= btnX + btnW &&
           screenY >= by && screenY <= by + btnH) {
-        purchaseUpgrade(this.meta, UPGRADE_DEFINITIONS[i].id);
+        purchaseUpgrade(this.meta, upgradeDefs[i].id);
         return;
       }
     }
@@ -717,11 +735,12 @@ export class Game {
     const cardH = 100;
     const gap = 15;
     const startY = 100;
+    const charDefs = getCharacterDefs();
 
-    for (let i = 0; i < CHARACTER_DEFINITIONS.length; i++) {
+    for (let i = 0; i < charDefs.length; i++) {
       const cy = startY + i * (cardH + gap);
       if (screenY >= cy && screenY <= cy + cardH) {
-        const charDef = CHARACTER_DEFINITIONS[i];
+        const charDef = charDefs[i];
         if (this.meta.unlocked.includes(charDef.id)) {
           selectCharacter(this.meta, charDef.id);
         } else {
@@ -780,8 +799,11 @@ export class Game {
   }
 
   handleSettingsScroll(deltaY) {
-    if (this.state !== 'settings') return;
-    const maxScroll = Math.max(0, SETTINGS_DEFS.length * 55 + 100 - this.canvas.height);
-    this.settingsScroll = Math.max(0, Math.min(maxScroll, this.settingsScroll + deltaY));
+    if (this.state === 'settings') {
+      const maxScroll = Math.max(0, SETTINGS_DEFS.length * 55 + 100 - this.canvas.height);
+      this.settingsScroll = Math.max(0, Math.min(maxScroll, this.settingsScroll + deltaY));
+    } else if (this.state === 'config_editor' && this.configEditorState) {
+      ceHandleScroll(this.configEditorState, deltaY, this.canvas);
+    }
   }
 }

@@ -1,5 +1,5 @@
 // Lightweight particle system for visual effects
-import { CONFIG } from './config.js';
+import { getConfig } from './gameConfig.js';
 
 export class ParticleSystem {
   constructor() {
@@ -18,7 +18,7 @@ export class ParticleSystem {
     } = opts;
 
     for (let i = 0; i < count; i++) {
-      if (this.particles.length >= CONFIG.particles.maxCount) break;
+      if (this.particles.length >= getConfig().particles.maxCount) break;
       const angle = Math.random() * Math.PI * 2;
       const speed = speedMin + Math.random() * (speedMax - speedMin);
       this.particles.push({

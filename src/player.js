@@ -1,18 +1,18 @@
-import { CONFIG } from './config.js';
+import { getConfig } from './gameConfig.js';
 
 export class Player {
   constructor(x, y) {
     this.x = x;
     this.y = y;
-    this.radius = CONFIG.player.radius;
+    this.radius = getConfig().player.radius;
 
     // HP
-    this.maxHp = CONFIG.player.maxHp;
+    this.maxHp = getConfig().player.maxHp;
     this.hp = this.maxHp;
     this.alive = true;
 
     // Movement
-    this.speed = CONFIG.player.speed;
+    this.speed = getConfig().player.speed;
 
     // Combat stats
     this.armor = 0;
@@ -22,8 +22,8 @@ export class Player {
     this.expBonusMultiplier = 1;
 
     // Pickup
-    this.pickupRange = CONFIG.player.pickupRange;
-    this.magnetRange = CONFIG.player.magnetRange;
+    this.pickupRange = getConfig().player.pickupRange;
+    this.magnetRange = getConfig().player.magnetRange;
 
     // Invincibility
     this.invincible = false;
@@ -56,8 +56,8 @@ export class Player {
     this.y += direction.y * this.speed * dt;
 
     // Clamp to map boundaries
-    this.x = Math.max(this.radius, Math.min(CONFIG.map.width - this.radius, this.x));
-    this.y = Math.max(this.radius, Math.min(CONFIG.map.height - this.radius, this.y));
+    this.x = Math.max(this.radius, Math.min(getConfig().map.width - this.radius, this.x));
+    this.y = Math.max(this.radius, Math.min(getConfig().map.height - this.radius, this.y));
   }
 
   takeDamage(amount) {
@@ -72,7 +72,7 @@ export class Player {
       this.alive = false;
     } else {
       this.invincible = true;
-      this.invincibleTimer = CONFIG.player.invincibleDuration;
+      this.invincibleTimer = getConfig().player.invincibleDuration;
     }
   }
 
@@ -114,7 +114,7 @@ export class Player {
     } else if (valueType === 'percent') {
       switch (stat) {
         case 'speed':
-          this.speed = CONFIG.player.speed * (1 + this._getAccumulatedPercent('speed', value));
+          this.speed = getConfig().player.speed * (1 + this._getAccumulatedPercent('speed', value));
           this._storePercent('speed', value);
           break;
         case 'damage':
@@ -124,8 +124,8 @@ export class Player {
           this.cooldownMultiplier += value;
           break;
         case 'pickupRange':
-          this.pickupRange = CONFIG.player.pickupRange * (1 + this._getAccumulatedPercent('pickupRange', value));
-          this.magnetRange = CONFIG.player.magnetRange * (1 + this._getAccumulatedPercent('pickupRange', value));
+          this.pickupRange = getConfig().player.pickupRange * (1 + this._getAccumulatedPercent('pickupRange', value));
+          this.magnetRange = getConfig().player.magnetRange * (1 + this._getAccumulatedPercent('pickupRange', value));
           this._storePercent('pickupRange', value);
           break;
         case 'expBonus':
@@ -151,7 +151,7 @@ export class Player {
 
   expToNextLevel() {
     return Math.floor(
-      CONFIG.leveling.baseExpToLevel * Math.pow(CONFIG.leveling.expGrowthFactor, this.level - 1)
+      getConfig().leveling.baseExpToLevel * Math.pow(getConfig().leveling.expGrowthFactor, this.level - 1)
     );
   }
 
@@ -168,17 +168,17 @@ export class Player {
   reset(x, y) {
     this.x = x;
     this.y = y;
-    this.maxHp = CONFIG.player.maxHp;
+    this.maxHp = getConfig().player.maxHp;
     this.hp = this.maxHp;
     this.alive = true;
-    this.speed = CONFIG.player.speed;
+    this.speed = getConfig().player.speed;
     this.armor = 0;
     this.regen = 0;
     this.damageMultiplier = 1;
     this.cooldownMultiplier = 1;
     this.expBonusMultiplier = 1;
-    this.pickupRange = CONFIG.player.pickupRange;
-    this.magnetRange = CONFIG.player.magnetRange;
+    this.pickupRange = getConfig().player.pickupRange;
+    this.magnetRange = getConfig().player.magnetRange;
     this.invincible = false;
     this.invincibleTimer = 0;
     this.hitFlashTimer = 0;

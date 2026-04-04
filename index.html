@@ -79,9 +79,9 @@
         game.handleSettingsDrag(e.clientX - rect.left, e.clientY - rect.top);
       }
     });
-    // Scroll support for settings
+    // Scroll support for settings and config editor
     canvas.addEventListener('wheel', (e) => {
-      if (game.state === 'settings') {
+      if (game.state === 'settings' || game.state === 'config_editor') {
         game.handleSettingsScroll(e.deltaY);
         e.preventDefault();
       }
@@ -129,6 +129,10 @@
       }
       if (game.state === 'characters') {
         renderer.drawCharacterSelect(canvas, game.meta);
+        return;
+      }
+      if (game.state === 'config_editor') {
+        renderer.drawConfigEditor(canvas, game.configEditorState);
         return;
       }
 
