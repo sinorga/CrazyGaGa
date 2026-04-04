@@ -247,40 +247,44 @@ export class Renderer {
     ctx.fillStyle = '#6688ff';
     ctx.fillRect(hpBarX, expBarY, ui.hpBarWidth * Math.min(1, expPercent), ui.expBarHeight);
 
-    // Level
+    // Level (top-left)
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(`Lv.${player.level}`, 10, 28);
 
-    // Timer
+    // Timer (top-center, above HP bar)
     const mins = Math.floor(elapsed / 60);
     const secs = Math.floor(elapsed % 60);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, this.canvas.width - 10, 28);
+    ctx.textAlign = 'center';
+    ctx.fillText(`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, this.canvas.width / 2, 12);
 
-    // Kill count
-    ctx.textAlign = 'right';
+    // Kill count & Gold (top-left, below level)
+    ctx.textAlign = 'left';
     ctx.font = '12px monospace';
-    ctx.fillText(`Kills: ${player.kills}`, this.canvas.width - 55, 46);
-
-    // Gold
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`Kills: ${player.kills}`, 10, 46);
     ctx.fillStyle = '#ffdd44';
-    ctx.fillText(`Gold: ${Math.floor(runGold || 0)}`, this.canvas.width - 55, 62);
+    ctx.fillText(`Gold: ${Math.floor(runGold || 0)}`, 10, 62);
 
-    // Acquired skills display (below level indicator)
+    // Acquired skills display (below kills/gold, wrapping to multiple rows)
     if (skillLevels) {
       let sx = 10;
-      const sy = 52;
+      let sy = 78;
+      const iconW = 30;
+      const maxX = this.canvas.width / 2 - 10; // don't overlap HP bar
       ctx.font = '11px monospace';
       for (const def of SKILL_DEFINITIONS) {
         const lv = skillLevels[def.id] || 0;
         if (lv > 0) {
+          if (sx + iconW > maxX) {
+            sx = 10;
+            sy += 16;
+          }
           ctx.textAlign = 'left';
           ctx.fillStyle = '#ffffff';
           ctx.fillText(`${def.icon}${lv}`, sx, sy);
-          sx += 32;
-          if (sx > 200) break; // limit display width
+          sx += iconW;
         }
       }
     }
