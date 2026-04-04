@@ -475,9 +475,14 @@ export class Game {
     this.player.kills++;
     this.runGold += (CONFIG.meta?.goldPerKill ?? 1) * this.goldRateMultiplier;
 
-    // Boss death: resume regular waves
+    // Boss death: bonus gold + EXP + celebration
     if (this.currentBoss === enemy) {
       this.currentBoss = null;
+      this.runGold += 50 * this.goldRateMultiplier; // boss bonus gold
+      this.particles.emit(enemy.x, enemy.y, 30, '#ffdd44', {
+        speedMin: 80, speedMax: 200, sizeMin: 4, sizeMax: 8, lifetime: 1.0, gravity: -20,
+      });
+      this.particles.emitText(enemy.x, enemy.y - 40, '+50g', '#ffdd44', { fontSize: 20, lifetime: 1.2 });
     }
 
     // Drop EXP gems
