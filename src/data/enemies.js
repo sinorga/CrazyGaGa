@@ -171,7 +171,7 @@ export const ENEMY_TYPES = [
     speed: 80,
     damage: 30,
     color: '#ff2222',
-    exp: 50,
+    exp: 200,
     unlockTime: 0, // controlled by bossPhase instead
     weight: 0, // bosses don't spawn randomly
     bossPhase: 1,
@@ -189,7 +189,7 @@ export const ENEMY_TYPES = [
     speed: 70,
     damage: 25,
     color: '#44ffaa',
-    exp: 100,
+    exp: 500,
     unlockTime: 0,
     weight: 0,
     bossPhase: 2,
