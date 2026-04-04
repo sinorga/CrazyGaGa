@@ -155,6 +155,9 @@
       if (game.state === 'gameover') {
         renderer.drawGameOver(game.player, game.elapsed, canvas, game.runGold);
       }
+      if (game.state === 'victory') {
+        renderer.drawVictory(game.player, game.elapsed, canvas, game.runGold);
+      }
     }
 
     // Start loop

@@ -525,6 +525,45 @@ export class Renderer {
     ctx.fillText('點擊重新開始', cx, canvas.height / 2 + 120);
   }
 
+  drawVictory(player, elapsed, canvas, runGold) {
+    const ctx = this.ctx;
+
+    // Overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2;
+
+    // Title
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = 'bold 36px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('勝利！', cx, canvas.height / 2 - 80);
+
+    // Subtitle
+    ctx.fillStyle = '#44dd44';
+    ctx.font = '20px monospace';
+    ctx.fillText('恭喜通關！', cx, canvas.height / 2 - 45);
+
+    // Stats
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '18px monospace';
+    const mins = Math.floor(elapsed / 60);
+    const secs = Math.floor(elapsed % 60);
+    ctx.fillText(`通關時間: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, cx, canvas.height / 2 + 0);
+    ctx.fillText(`擊殺數: ${player.kills}`, cx, canvas.height / 2 + 35);
+    ctx.fillText(`等級: ${player.level}`, cx, canvas.height / 2 + 70);
+
+    // Gold earned (doubled)
+    ctx.fillStyle = '#ffdd44';
+    ctx.fillText(`獲得金幣: ${Math.floor(runGold || 0)} (2x)`, cx, canvas.height / 2 + 105);
+
+    // Return prompt
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '16px monospace';
+    ctx.fillText('點擊返回主選單', cx, canvas.height / 2 + 150);
+  }
+
   drawMenu(canvas, meta) {
     const ctx = this.ctx;
     const cx = canvas.width / 2;

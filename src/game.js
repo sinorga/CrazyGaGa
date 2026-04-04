@@ -22,7 +22,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'settings' | 'shop' | 'characters' | 'playing' | 'paused' | 'levelup' | 'gameover'
+    this.state = 'menu'; // 'menu' | 'settings' | 'shop' | 'characters' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory'
     this.elapsed = 0;
 
     // Entities
@@ -199,6 +199,13 @@ export class Game {
     saveMeta(this.meta);
   }
 
+  triggerVictory() {
+    this.state = 'victory';
+    this.runGold *= 2; // double gold reward for winning
+    this.meta.gold += Math.floor(this.runGold);
+    saveMeta(this.meta);
+  }
+
   // Called by game loop each fixed timestep
   updatePlaying(dt) {
     if (this.state !== 'playing') return;
@@ -308,6 +315,12 @@ export class Game {
     this.projectiles = this.projectiles.filter(p => p.alive);
     this.enemyProjectiles = this.enemyProjectiles.filter(p => p.alive);
     this.pickups = this.pickups.filter(p => p.alive);
+
+    // Check victory
+    if (this.player.kills >= CONFIG.waves.victoryKills) {
+      this.triggerVictory();
+      return;
+    }
 
     // Check player death
     if (!this.player.alive) {
@@ -571,6 +584,10 @@ export class Game {
     }
     if (this.state === 'gameover') {
       this.restart();
+      return;
+    }
+    if (this.state === 'victory') {
+      this.state = 'menu';
       return;
     }
     if (this.state === 'levelup') {

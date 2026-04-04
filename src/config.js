@@ -56,6 +56,7 @@ export const CONFIG = {
     spawnDistanceMin: 400, // min distance from player
     spawnDistanceMax: 600,
     bossKillThreshold: 100, // kills needed to trigger boss spawn
+    victoryKills: 500, // kills needed to win
   },
 
   // Spatial hash grid
