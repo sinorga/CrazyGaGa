@@ -11,6 +11,7 @@ import { getRandomSkillChoices, getSkillDefinition } from './data/skills.js';
 import { getEnemyType, getBossForPhase } from './data/enemies.js';
 import { updateBossAI } from './boss.js';
 import { canEvolve, getEvolutionRecipe } from './data/evolutions.js';
+import { SETTINGS_DEFS, loadSettings, saveSettings, resetSettings, getDefaults, applyUserSettings } from './settings.js';
 
 export class Game {
   constructor(canvas) {
@@ -18,7 +19,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'playing' | 'levelup' | 'gameover'
+    this.state = 'menu'; // 'menu' | 'settings' | 'playing' | 'levelup' | 'gameover'
     this.elapsed = 0;
 
     // Entities
@@ -46,6 +47,11 @@ export class Game {
     this.bossPhase = 0;
     this.nextBossKills = CONFIG.waves.bossKillThreshold;
 
+    // Settings state
+    this.settingsValues = loadSettings() || getDefaults();
+    this.settingsScroll = 0;
+    this.activeSlider = -1; // index of slider being dragged
+
     // Damage events for renderer
     this.onPlayerDamage = null; // callback: (isBoss) => {}
 
@@ -64,6 +70,13 @@ export class Game {
     this.spawner.reset();
     this.weaponManager.reset();
     this.weaponManager.addWeapon(this._startingWeapon);
+    // Apply cooldown multiplier from settings
+    const cdMult = this.settingsValues?.cooldownMultiplier ?? 1.0;
+    if (cdMult !== 1.0) {
+      for (const w of this.weaponManager.weapons) {
+        w.cooldown *= cdMult;
+      }
+    }
     this.currentBoss = null;
     this.bossPhase = 0;
     this.nextBossKills = CONFIG.waves.bossKillThreshold;
@@ -431,7 +444,23 @@ export class Game {
   // Handle click/tap events for UI
   handleClick(screenX, screenY) {
     if (this.state === 'menu') {
+      // Check settings button (bottom center)
+      const settingsBtnW = 120;
+      const settingsBtnH = 40;
+      const settingsBtnX = this.canvas.width / 2 - settingsBtnW / 2;
+      const settingsBtnY = this.canvas.height / 2 + 140;
+      if (screenX >= settingsBtnX && screenX <= settingsBtnX + settingsBtnW &&
+          screenY >= settingsBtnY && screenY <= settingsBtnY + settingsBtnH) {
+        this.settingsValues = loadSettings() || getDefaults();
+        this.settingsScroll = 0;
+        this.state = 'settings';
+        return;
+      }
       this.startGame();
+      return;
+    }
+    if (this.state === 'settings') {
+      this._handleSettingsClick(screenX, screenY);
       return;
     }
     if (this.state === 'gameover') {
@@ -456,5 +485,75 @@ export class Game {
       }
       return; // tap outside buttons — do nothing, stay in levelup
     }
+  }
+
+  _handleSettingsClick(screenX, screenY) {
+    const cx = this.canvas.width / 2;
+    const sliderW = 220;
+    const rowH = 55;
+    const startY = 80 - this.settingsScroll;
+
+    // Back button (top-left)
+    if (screenX < 80 && screenY < 50) {
+      saveSettings(this.settingsValues);
+      applyUserSettings();
+      this.state = 'menu';
+      return;
+    }
+
+    // Reset button (top-right)
+    if (screenX > this.canvas.width - 100 && screenY < 50) {
+      resetSettings();
+      this.settingsValues = getDefaults();
+      applyUserSettings();
+      return;
+    }
+
+    // Check slider taps — update value based on tap position on slider track
+    const sliderX = cx - sliderW / 2;
+    for (let i = 0; i < SETTINGS_DEFS.length; i++) {
+      const y = startY + i * rowH + 30;
+      if (screenY >= y - 10 && screenY <= y + 10 &&
+          screenX >= sliderX && screenX <= sliderX + sliderW) {
+        const def = SETTINGS_DEFS[i];
+        const ratio = Math.max(0, Math.min(1, (screenX - sliderX) / sliderW));
+        const raw = def.min + ratio * (def.max - def.min);
+        const snapped = Math.round(raw / def.step) * def.step;
+        this.settingsValues[def.key] = Math.min(def.max, Math.max(def.min, parseFloat(snapped.toFixed(4))));
+        saveSettings(this.settingsValues);
+        applyUserSettings();
+        return;
+      }
+    }
+  }
+
+  handleSettingsDrag(screenX, screenY) {
+    if (this.state !== 'settings') return;
+    const cx = this.canvas.width / 2;
+    const sliderW = 220;
+    const rowH = 55;
+    const startY = 80 - this.settingsScroll;
+    const sliderX = cx - sliderW / 2;
+
+    for (let i = 0; i < SETTINGS_DEFS.length; i++) {
+      const y = startY + i * rowH + 30;
+      if (screenY >= y - 15 && screenY <= y + 15 &&
+          screenX >= sliderX - 10 && screenX <= sliderX + sliderW + 10) {
+        const def = SETTINGS_DEFS[i];
+        const ratio = Math.max(0, Math.min(1, (screenX - sliderX) / sliderW));
+        const raw = def.min + ratio * (def.max - def.min);
+        const snapped = Math.round(raw / def.step) * def.step;
+        this.settingsValues[def.key] = Math.min(def.max, Math.max(def.min, parseFloat(snapped.toFixed(4))));
+        saveSettings(this.settingsValues);
+        applyUserSettings();
+        return;
+      }
+    }
+  }
+
+  handleSettingsScroll(deltaY) {
+    if (this.state !== 'settings') return;
+    const maxScroll = Math.max(0, SETTINGS_DEFS.length * 55 + 100 - this.canvas.height);
+    this.settingsScroll = Math.max(0, Math.min(maxScroll, this.settingsScroll + deltaY));
   }
 }

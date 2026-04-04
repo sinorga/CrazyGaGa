@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { SETTINGS_DEFS } from './settings.js';
 
 export class Renderer {
   constructor(ctx, canvas) {
@@ -460,5 +461,94 @@ export class Renderer {
     ctx.font = '13px monospace';
     ctx.fillText('WASD / 虛擬搖桿 移動', cx, canvas.height / 2 + 90);
     ctx.fillText('靜止時自動攻擊', cx, canvas.height / 2 + 112);
+
+    // Settings button
+    const btnW = 120;
+    const btnH = 40;
+    const btnX = cx - btnW / 2;
+    const btnY = canvas.height / 2 + 140;
+    ctx.fillStyle = '#2a2a4e';
+    ctx.fillRect(btnX, btnY, btnW, btnH);
+    ctx.strokeStyle = '#6666aa';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(btnX, btnY, btnW, btnH);
+    ctx.fillStyle = '#aaaacc';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('設定', cx, btnY + 26);
+  }
+
+  drawSettingsPage(canvas, settingsValues, scrollY) {
+    const ctx = this.ctx;
+    const cx = canvas.width / 2;
+
+    ctx.fillStyle = CONFIG.canvas.backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Back button (top-left)
+    ctx.fillStyle = '#aaaacc';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← 返回', 15, 32);
+
+    // Reset button (top-right)
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ff6666';
+    ctx.fillText('重置預設', canvas.width - 15, 32);
+
+    // Title
+    ctx.fillStyle = '#00d4ff';
+    ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('遊戲設定', cx, 60);
+
+    // Slider rows
+    const sliderW = 220;
+    const sliderX = cx - sliderW / 2;
+    const rowH = 55;
+    const startY = 80 - scrollY;
+
+    ctx.save();
+    // Clip to below header
+    ctx.beginPath();
+    ctx.rect(0, 70, canvas.width, canvas.height - 70);
+    ctx.clip();
+
+    for (let i = 0; i < SETTINGS_DEFS.length; i++) {
+      const def = SETTINGS_DEFS[i];
+      const y = startY + i * rowH;
+      const sliderY = y + 30;
+      const value = settingsValues[def.key] ?? def.default;
+
+      // Label
+      ctx.fillStyle = '#ccccee';
+      ctx.font = '14px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(def.label, sliderX, y + 15);
+
+      // Value display
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#ffdd44';
+      const displayVal = def.step < 1 ? value.toFixed(2) : Math.round(value);
+      ctx.fillText(String(displayVal), sliderX + sliderW, y + 15);
+
+      // Slider track
+      ctx.fillStyle = '#333355';
+      ctx.fillRect(sliderX, sliderY - 4, sliderW, 8);
+
+      // Slider fill
+      const ratio = (value - def.min) / (def.max - def.min);
+      ctx.fillStyle = '#4466aa';
+      ctx.fillRect(sliderX, sliderY - 4, sliderW * ratio, 8);
+
+      // Slider knob
+      const knobX = sliderX + sliderW * ratio;
+      ctx.fillStyle = '#88aaff';
+      ctx.beginPath();
+      ctx.arc(knobX, sliderY, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 }
