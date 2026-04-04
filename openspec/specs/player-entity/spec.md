@@ -1,7 +1,7 @@
 # player-entity Specification
 
 ## Purpose
-TBD - created by archiving change mvp-playable-game. Update Purpose after archive.
+Defines player movement, health, and stat system including passive skill effects and HP regeneration.
 ## Requirements
 ### Requirement: Player movement
 The Player SHALL move in the direction indicated by Input at speed defined in CONFIG.player.speed, modified by passive speed bonuses. Movement SHALL be clamped to map boundaries.

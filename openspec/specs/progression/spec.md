@@ -1,7 +1,7 @@
 # progression Specification
 
 ## Purpose
-TBD - created by archiving change mvp-playable-game. Update Purpose after archive.
+Defines EXP gem drops, magnetic pickup, level-up triggers, skill selection, and run stat tracking.
 ## Requirements
 ### Requirement: EXP gem drops
 Killed enemies SHALL drop EXP gems worth the enemy's configured exp value.
