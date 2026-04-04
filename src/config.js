@@ -47,12 +47,12 @@ export const CONFIG = {
   // Wave spawning
   waves: {
     initialDelay: 1, // seconds before first spawn
-    spawnInterval: 2.0, // seconds between spawns (decreases over time)
-    minSpawnInterval: 0.3,
-    spawnIntervalDecay: 0.98, // multiply interval by this each wave
-    enemiesPerWave: 3, // starting count
-    enemiesPerWaveGrowth: 0.5, // extra enemies per wave
-    maxEnemies: 200, // cap on screen
+    spawnInterval: 2.5, // seconds between spawns (decreases over time)
+    minSpawnInterval: 0.5,
+    spawnIntervalDecay: 0.99, // multiply interval by this each wave
+    enemiesPerWave: 2, // starting count
+    enemiesPerWaveGrowth: 0.3, // extra enemies per wave
+    maxEnemies: 80, // cap on screen
     spawnDistanceMin: 400, // min distance from player
     spawnDistanceMax: 600,
     bossInterval: 180, // seconds between boss spawns (3 min)

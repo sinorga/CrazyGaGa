@@ -442,7 +442,7 @@ export class Game {
       return;
     }
     if (this.state === 'levelup') {
-      // Check which skill button was clicked
+      // Check which skill button was clicked — ignore taps outside buttons
       const buttonH = 80;
       const gap = 10;
       const totalH = this.skillChoices.length * (buttonH + gap);
@@ -457,6 +457,7 @@ export class Game {
           return;
         }
       }
+      return; // tap outside buttons — do nothing, stay in levelup
     }
   }
 }
