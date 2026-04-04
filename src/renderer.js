@@ -2,6 +2,7 @@ import { CONFIG } from './config.js';
 import { SETTINGS_DEFS } from './settings.js';
 import { UPGRADE_DEFINITIONS } from './data/upgrades.js';
 import { CHARACTER_DEFINITIONS } from './data/characters.js';
+import { SKILL_DEFINITIONS } from './data/skills.js';
 
 export class Renderer {
   constructor(ctx, canvas) {
@@ -210,7 +211,7 @@ export class Renderer {
     }
   }
 
-  drawHUD(player, elapsed, runGold) {
+  drawHUD(player, elapsed, runGold, skillLevels) {
     const ctx = this.ctx;
     const ui = CONFIG.ui;
 
@@ -261,11 +262,41 @@ export class Renderer {
     // Kill count
     ctx.textAlign = 'right';
     ctx.font = '12px monospace';
-    ctx.fillText(`Kills: ${player.kills}`, this.canvas.width - 10, 46);
+    ctx.fillText(`Kills: ${player.kills}`, this.canvas.width - 55, 46);
 
     // Gold
     ctx.fillStyle = '#ffdd44';
-    ctx.fillText(`Gold: ${Math.floor(runGold || 0)}`, this.canvas.width - 10, 62);
+    ctx.fillText(`Gold: ${Math.floor(runGold || 0)}`, this.canvas.width - 55, 62);
+
+    // Acquired skills display (below level indicator)
+    if (skillLevels) {
+      let sx = 10;
+      const sy = 52;
+      ctx.font = '11px monospace';
+      for (const def of SKILL_DEFINITIONS) {
+        const lv = skillLevels[def.id] || 0;
+        if (lv > 0) {
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(`${def.icon}${lv}`, sx, sy);
+          sx += 32;
+          if (sx > 200) break; // limit display width
+        }
+      }
+    }
+
+    // Pause button (top-right)
+    const pbX = this.canvas.width - 50;
+    const pbY = 10;
+    ctx.fillStyle = 'rgba(40, 40, 70, 0.7)';
+    ctx.fillRect(pbX, pbY, 40, 40);
+    ctx.strokeStyle = '#6666aa';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pbX, pbY, 40, 40);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('⏸', pbX + 20, pbY + 28);
   }
 
   drawBossHPBar(boss) {
@@ -295,6 +326,46 @@ export class Renderer {
     ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(boss.typeDef.name, this.canvas.width / 2, barY - 4);
+  }
+
+  drawPauseOverlay(canvas) {
+    const ctx = this.ctx;
+    const cx = canvas.width / 2;
+
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 32px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('遊戲暫停', cx, canvas.height / 2 - 60);
+
+    // Resume button
+    const btnW = 180;
+    const btnH = 50;
+    const btnX = cx - btnW / 2;
+    const resumeY = canvas.height / 2 - 10;
+
+    ctx.fillStyle = '#2a4e2a';
+    ctx.fillRect(btnX, resumeY, btnW, btnH);
+    ctx.strokeStyle = '#44aa44';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(btnX, resumeY, btnW, btnH);
+    ctx.fillStyle = '#44dd44';
+    ctx.font = 'bold 18px monospace';
+    ctx.fillText('繼續遊戲', cx, resumeY + 32);
+
+    // Exit button
+    const exitY = canvas.height / 2 + 60;
+    ctx.fillStyle = '#4e2a2a';
+    ctx.fillRect(btnX, exitY, btnW, btnH);
+    ctx.strokeStyle = '#aa4444';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(btnX, exitY, btnW, btnH);
+    ctx.fillStyle = '#dd4444';
+    ctx.fillText('離開遊戲', cx, exitY + 32);
   }
 
   triggerShake(intensity) {
@@ -366,46 +437,53 @@ export class Renderer {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Title
+    // Title at top
     ctx.fillStyle = '#ffdd44';
-    ctx.font = 'bold 28px monospace';
+    ctx.font = 'bold 24px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('升級！選擇技能', canvas.width / 2, 80);
+    ctx.fillText('升級！選擇技能', canvas.width / 2, canvas.height * 0.15);
 
-    // Skill buttons
-    const buttonW = 280;
-    const buttonH = 80;
+    // Horizontal card layout at ~35% of screen
+    const count = skillChoices.length;
     const gap = 10;
-    const totalH = skillChoices.length * (buttonH + gap);
-    const startY = (canvas.height - totalH) / 2;
+    const cardW = Math.min(140, (canvas.width - gap * (count + 1)) / count);
+    const cardH = 120;
+    const totalW = count * cardW + (count - 1) * gap;
+    const startX = (canvas.width - totalW) / 2;
+    const cardY = canvas.height * 0.22;
 
-    for (let i = 0; i < skillChoices.length; i++) {
+    for (let i = 0; i < count; i++) {
       const skill = skillChoices[i];
-      const bx = canvas.width / 2 - buttonW / 2;
-      const by = startY + i * (buttonH + gap);
+      const bx = startX + i * (cardW + gap);
 
-      // Button background
+      // Card background
       ctx.fillStyle = '#2a2a4e';
-      ctx.fillRect(bx, by, buttonW, buttonH);
+      ctx.fillRect(bx, cardY, cardW, cardH);
       ctx.strokeStyle = '#6666aa';
       ctx.lineWidth = 2;
-      ctx.strokeRect(bx, by, buttonW, buttonH);
+      ctx.strokeRect(bx, cardY, cardW, cardH);
 
       // Icon
       ctx.font = '28px serif';
-      ctx.textAlign = 'left';
+      ctx.textAlign = 'center';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(skill.icon, bx + 12, by + 42);
+      ctx.fillText(skill.icon, bx + cardW / 2, cardY + 35);
 
       // Name
-      ctx.font = 'bold 16px monospace';
+      ctx.font = 'bold 13px monospace';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(skill.name, bx + 55, by + 30);
+      ctx.fillText(skill.name, bx + cardW / 2, cardY + 60);
 
-      // Description
-      ctx.font = '12px monospace';
+      // Description (wrap if needed)
+      ctx.font = '10px monospace';
       ctx.fillStyle = '#aaaacc';
-      ctx.fillText(skill.description, bx + 55, by + 55);
+      const desc = skill.description;
+      if (desc.length > 10) {
+        ctx.fillText(desc.substring(0, 10), bx + cardW / 2, cardY + 80);
+        ctx.fillText(desc.substring(10), bx + cardW / 2, cardY + 95);
+      } else {
+        ctx.fillText(desc, bx + cardW / 2, cardY + 85);
+      }
     }
   }
 

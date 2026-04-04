@@ -96,7 +96,7 @@ export class WeaponManager {
   _updateOrbit(weapon, dt, player) {
     const cfg = weapon.config;
     weapon.angle += cfg.orbitSpeed * dt;
-    const count = cfg.count + Math.floor((weapon.level - 1) / 3); // +1 orb every 3 levels
+    const count = cfg.count + (weapon.level - 1); // +1 orb every level
     const radius = cfg.orbitRadius + weapon.level * 3;
 
     weapon.orbs = [];

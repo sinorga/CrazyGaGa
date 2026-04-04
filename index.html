@@ -142,12 +142,15 @@
       game.particles.render(ctx, cam);
       renderer.drawPlayer(game.player, cam);
       renderer.drawDamageFlash();
-      renderer.drawHUD(game.player, game.elapsed, game.runGold);
+      renderer.drawHUD(game.player, game.elapsed, game.runGold, game.player.skillLevels);
       if (game.currentBoss) {
         renderer.drawBossHPBar(game.currentBoss);
       }
       renderer.drawJoystick(game.input);
 
+      if (game.state === 'paused') {
+        renderer.drawPauseOverlay(canvas);
+      }
       if (game.state === 'levelup') {
         renderer.drawLevelUpPanel(game.skillChoices, canvas);
       }

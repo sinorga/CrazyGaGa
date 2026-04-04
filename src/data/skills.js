@@ -25,7 +25,7 @@ export const SKILL_DEFINITIONS = [
     description: '獲得/強化弓箭，增加傷害與穿透',
     category: 'weapon',
     icon: '🏹',
-    maxLevel: 8,
+    maxLevel: 5,
     weaponId: 'arrow',
   },
   {
@@ -34,7 +34,7 @@ export const SKILL_DEFINITIONS = [
     description: '獲得/強化環繞魔法球',
     category: 'weapon',
     icon: '🔮',
-    maxLevel: 8,
+    maxLevel: 5,
     weaponId: 'magic_orb',
   },
   {
@@ -43,7 +43,7 @@ export const SKILL_DEFINITIONS = [
     description: '獲得/強化閃電鏈攻擊',
     category: 'weapon',
     icon: '⚡',
-    maxLevel: 8,
+    maxLevel: 5,
     weaponId: 'lightning',
   },
   {
@@ -52,7 +52,7 @@ export const SKILL_DEFINITIONS = [
     description: '獲得/強化灼燒地面區域',
     category: 'weapon',
     icon: '🔥',
-    maxLevel: 8,
+    maxLevel: 5,
     weaponId: 'fire_circle',
   },
   {
@@ -61,7 +61,7 @@ export const SKILL_DEFINITIONS = [
     description: '獲得/強化迴旋鏢攻擊',
     category: 'weapon',
     icon: '🪃',
-    maxLevel: 8,
+    maxLevel: 5,
     weaponId: 'boomerang',
   },
   {
@@ -70,7 +70,7 @@ export const SKILL_DEFINITIONS = [
     description: '獲得/強化聖劍雨攻擊',
     category: 'weapon',
     icon: '⚔️',
-    maxLevel: 8,
+    maxLevel: 5,
     weaponId: 'holy_sword',
   },
 

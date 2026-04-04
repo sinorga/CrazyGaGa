@@ -22,7 +22,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'settings' | 'shop' | 'characters' | 'playing' | 'levelup' | 'gameover'
+    this.state = 'menu'; // 'menu' | 'settings' | 'shop' | 'characters' | 'playing' | 'paused' | 'levelup' | 'gameover'
     this.elapsed = 0;
 
     // Entities
@@ -404,6 +404,25 @@ export class Game {
       }
     }
 
+    // Orbs vs enemy projectiles — orbs destroy enemy bullets
+    for (const weapon of this.weaponManager.weapons) {
+      if (weapon.type === 'orbit' && weapon.orbs) {
+        for (const orb of weapon.orbs) {
+          for (const proj of this.enemyProjectiles) {
+            if (!proj.alive) continue;
+            const dx = orb.x - proj.x;
+            const dy = orb.y - proj.y;
+            const dist = dx * dx + dy * dy;
+            const minDist = orb.radius + proj.radius;
+            if (dist < minDist * minDist) {
+              proj.alive = false;
+              this.particles.emit(proj.x, proj.y, 3, orb.color, { speedMax: 60, lifetime: 0.2 });
+            }
+          }
+        }
+      }
+    }
+
     // Update orb hit cooldowns
     for (const enemy of this.enemies) {
       if (enemy._orbHitTimers) {
@@ -535,27 +554,44 @@ export class Game {
       this._handleSettingsClick(screenX, screenY);
       return;
     }
+    if (this.state === 'playing') {
+      // Pause button (top-right, 40x40)
+      const pauseBtnX = this.canvas.width - 50;
+      const pauseBtnY = 10;
+      if (screenX >= pauseBtnX && screenX <= pauseBtnX + 40 &&
+          screenY >= pauseBtnY && screenY <= pauseBtnY + 40) {
+        this.state = 'paused';
+        return;
+      }
+      return;
+    }
+    if (this.state === 'paused') {
+      this._handlePausedClick(screenX, screenY);
+      return;
+    }
     if (this.state === 'gameover') {
       this.restart();
       return;
     }
     if (this.state === 'levelup') {
-      // Check which skill button was clicked — ignore taps outside buttons
-      const buttonH = 80;
+      // Horizontal card layout — match renderer positions
+      const count = this.skillChoices.length;
       const gap = 10;
-      const totalH = this.skillChoices.length * (buttonH + gap);
-      const startY = (this.canvas.height - totalH) / 2;
+      const cardW = Math.min(140, (this.canvas.width - gap * (count + 1)) / count);
+      const cardH = 120;
+      const totalW = count * cardW + (count - 1) * gap;
+      const startX = (this.canvas.width - totalW) / 2;
+      const cardY = this.canvas.height * 0.22;
 
-      for (let i = 0; i < this.skillChoices.length; i++) {
-        const bx = this.canvas.width / 2 - 140;
-        const by = startY + i * (buttonH + gap);
-        if (screenX >= bx && screenX <= bx + 280 &&
-            screenY >= by && screenY <= by + buttonH) {
+      for (let i = 0; i < count; i++) {
+        const bx = startX + i * (cardW + gap);
+        if (screenX >= bx && screenX <= bx + cardW &&
+            screenY >= cardY && screenY <= cardY + cardH) {
           this.selectSkill(i);
           return;
         }
       }
-      return; // tap outside buttons — do nothing, stay in levelup
+      return; // tap outside cards — do nothing, stay in levelup
     }
   }
 
@@ -646,6 +682,29 @@ export class Game {
         }
         return;
       }
+    }
+  }
+
+  _handlePausedClick(screenX, screenY) {
+    const cx = this.canvas.width / 2;
+    const btnW = 180;
+    const btnH = 50;
+    const btnX = cx - btnW / 2;
+
+    // Resume button
+    const resumeY = this.canvas.height / 2 - 10;
+    if (screenX >= btnX && screenX <= btnX + btnW &&
+        screenY >= resumeY && screenY <= resumeY + btnH) {
+      this.state = 'playing';
+      return;
+    }
+
+    // Exit button
+    const exitY = this.canvas.height / 2 + 60;
+    if (screenX >= btnX && screenX <= btnX + btnW &&
+        screenY >= exitY && screenY <= exitY + btnH) {
+      this.state = 'menu';
+      return;
     }
   }
 
