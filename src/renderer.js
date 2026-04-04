@@ -109,8 +109,8 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
       ctx.stroke();
 
       // HP bar (only if damaged)
@@ -151,8 +151,8 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
   }
