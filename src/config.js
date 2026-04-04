@@ -24,7 +24,7 @@ export const CONFIG = {
   player: {
     radius: 16,
     speed: 180, // px/sec
-    maxHp: 100,
+    maxHp: 500,
     color: '#00d4ff',
     invincibleDuration: 0.5, // seconds after being hit
     pickupRange: 60, // auto-pickup radius
@@ -55,7 +55,7 @@ export const CONFIG = {
     maxEnemies: 80, // cap on screen
     spawnDistanceMin: 400, // min distance from player
     spawnDistanceMax: 600,
-    bossInterval: 180, // seconds between boss spawns (3 min)
+    bossKillThreshold: 100, // kills needed to trigger boss spawn
   },
 
   // Spatial hash grid

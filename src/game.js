@@ -44,7 +44,7 @@ export class Game {
     // Boss state
     this.currentBoss = null;
     this.bossPhase = 0;
-    this.bossSpawnTimer = CONFIG.waves.bossInterval;
+    this.nextBossKills = CONFIG.waves.bossKillThreshold;
 
     // Damage events for renderer
     this.onPlayerDamage = null; // callback: (isBoss) => {}
@@ -66,7 +66,7 @@ export class Game {
     this.weaponManager.addWeapon(this._startingWeapon);
     this.currentBoss = null;
     this.bossPhase = 0;
-    this.bossSpawnTimer = CONFIG.waves.bossInterval;
+    this.nextBossKills = CONFIG.waves.bossKillThreshold;
     this.particles = new ParticleSystem();
     this.skillChoices = [];
     this.autoAttackDelay = 0;
@@ -162,22 +162,19 @@ export class Game {
 
     this.player.update(dt);
 
-    // Boss spawn timer
-    if (!this.currentBoss) {
-      this.bossSpawnTimer -= dt;
-      if (this.bossSpawnTimer <= 0) {
-        this.bossPhase++;
-        const bossDef = getBossForPhase(this.bossPhase);
-        if (bossDef) {
-          const angle = Math.random() * Math.PI * 2;
-          const dist = CONFIG.waves.spawnDistanceMin;
-          const bx = this.player.x + Math.cos(angle) * dist;
-          const by = this.player.y + Math.sin(angle) * dist;
-          this.currentBoss = new Enemy(bx, by, bossDef);
-          this.enemies.push(this.currentBoss);
-        }
-        this.bossSpawnTimer = CONFIG.waves.bossInterval;
+    // Boss spawn on kill threshold
+    if (!this.currentBoss && this.player.kills >= this.nextBossKills) {
+      this.bossPhase++;
+      const bossDef = getBossForPhase(this.bossPhase);
+      if (bossDef) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = CONFIG.waves.spawnDistanceMin;
+        const bx = this.player.x + Math.cos(angle) * dist;
+        const by = this.player.y + Math.sin(angle) * dist;
+        this.currentBoss = new Enemy(bx, by, bossDef);
+        this.enemies.push(this.currentBoss);
       }
+      this.nextBossKills += CONFIG.waves.bossKillThreshold;
     }
 
     // Wave spawning (paused during boss fight)

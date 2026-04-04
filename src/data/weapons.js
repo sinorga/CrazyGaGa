@@ -22,7 +22,7 @@ export const WEAPON_DEFINITIONS = [
     description: '直射箭矢，可穿透敵人',
     type: 'projectile',
     damage: 10,
-    cooldown: 0.8,
+    cooldown: 0.27,
     color: '#ffdd44',
     maxLevel: 8,
     icon: '🏹',
@@ -51,7 +51,7 @@ export const WEAPON_DEFINITIONS = [
       orbitSpeed: 2.5, // radians per second
       count: 2, // number of orbs
       radius: 8,
-      hitCooldown: 0.5, // seconds between hitting same enemy
+      hitCooldown: 0.17, // seconds between hitting same enemy
     },
   },
   {
@@ -60,7 +60,7 @@ export const WEAPON_DEFINITIONS = [
     description: '隨機電擊附近敵人，可連鎖',
     type: 'chain',
     damage: 15,
-    cooldown: 1.5,
+    cooldown: 0.5,
     color: '#ffff44',
     maxLevel: 8,
     icon: '⚡',
@@ -78,7 +78,7 @@ export const WEAPON_DEFINITIONS = [
     description: '在地面產生灼燒區域',
     type: 'area',
     damage: 6,
-    cooldown: 3.0,
+    cooldown: 1.0,
     color: '#ff6622',
     maxLevel: 8,
     icon: '🔥',
@@ -95,7 +95,7 @@ export const WEAPON_DEFINITIONS = [
     description: '投出後返回，來回皆造成傷害',
     type: 'boomerang',
     damage: 12,
-    cooldown: 1.2,
+    cooldown: 0.4,
     color: '#ff88cc',
     maxLevel: 8,
     icon: '🪃',
@@ -113,7 +113,7 @@ export const WEAPON_DEFINITIONS = [
     description: '從天降下聖劍覆蓋範圍',
     type: 'area',
     damage: 25,
-    cooldown: 4.0,
+    cooldown: 1.33,
     color: '#ffffaa',
     maxLevel: 8,
     icon: '⚔️',
