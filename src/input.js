@@ -42,6 +42,7 @@ export class Input {
     this.canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
       if (this.joystick.active) return;
+      if (this.enabled === false) return; // skip joystick when UI is active
       const touch = e.changedTouches[0];
       const rect = this.canvas.getBoundingClientRect();
       this.joystick.active = true;
