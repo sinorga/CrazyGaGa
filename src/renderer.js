@@ -397,32 +397,22 @@ export class Renderer {
     const cx = canvas.width / 2;
     const t = bossEntrance.timer;
 
-    if (t > 1.0) {
-      // Phase 1: darkening + WARNING text
-      const phase = (2.0 - t); // 0→1
-      const darkAlpha = Math.min(0.4, phase * 0.4);
-      ctx.fillStyle = `rgba(0, 0, 0, ${darkAlpha})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Pulsing WARNING text
-      const pulse = Math.sin(phase * 12) * 0.3 + 0.7;
+    if (t > 0.6) {
+      // Phase 1: WARNING text (no darkening, just text overlay)
+      const pulse = Math.sin((1.2 - t) * 16) * 0.3 + 0.7;
       ctx.globalAlpha = pulse;
       ctx.fillStyle = '#ff2222';
       ctx.font = 'bold 28px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('⚠ WARNING ⚠', cx, canvas.height * 0.4);
+      ctx.fillText('⚠ WARNING ⚠', cx, canvas.height * 0.35);
       ctx.globalAlpha = 1;
     } else {
-      // Phase 2: boss name + fade out
-      const darkAlpha = t * 0.4; // fading out
-      ctx.fillStyle = `rgba(0, 0, 0, ${darkAlpha})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.globalAlpha = Math.min(1, (1.0 - t) * 2);
+      // Phase 2: boss name fading out
+      ctx.globalAlpha = t / 0.6;
       ctx.fillStyle = '#ff6666';
       ctx.font = 'bold 22px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(bossEntrance.bossName || 'BOSS', cx, canvas.height * 0.4);
+      ctx.fillText(bossEntrance.bossName || 'BOSS', cx, canvas.height * 0.35);
       ctx.globalAlpha = 1;
     }
   }

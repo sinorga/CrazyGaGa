@@ -254,7 +254,7 @@ export class Game {
         const by = this.player.y + Math.sin(angle) * dist;
         this.currentBoss = new Enemy(bx, by, bossDef);
         this.enemies.push(this.currentBoss);
-        this.bossEntrance = { timer: 2.0, bossName: bossDef.name };
+        this.bossEntrance = { timer: 1.2, bossName: bossDef.name };
       }
       this.nextBossKills += CONFIG.waves.bossKillThreshold;
     }
