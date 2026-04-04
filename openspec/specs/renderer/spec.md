@@ -1,7 +1,7 @@
 # renderer Specification
 
 ## Purpose
-TBD - created by archiving change mvp-playable-game. Update Purpose after archive.
+Defines all rendering responsibilities: camera, map, entities, HUD, UI overlays, and visual effects.
 ## Requirements
 ### Requirement: Camera follow
 The renderer SHALL use a camera that smoothly follows the player using lerp interpolation.
@@ -71,4 +71,29 @@ During 'gameover' state, the renderer SHALL display final stats and a restart pr
 #### Scenario: Game over screen
 - **WHEN** the game is in 'gameover' state
 - **THEN** a semi-transparent overlay shows "遊戲結束", survival time, kills, level, and "點擊重新開始"
+
+### Requirement: Boss HP bar UI
+The renderer SHALL display a prominent boss HP bar when a boss is active.
+
+#### Scenario: Boss HP bar display
+- **WHEN** a boss enemy is alive
+- **THEN** a wide HP bar with boss name is rendered at the top center of the screen, below the player HUD
+
+### Requirement: Screen shake effect
+The renderer SHALL apply screen shake by adding decaying random offset to the camera.
+
+#### Scenario: Shake on boss hit
+- **WHEN** the player takes damage from a boss attack
+- **THEN** the camera shakes with configurable intensity that decays to zero
+
+#### Scenario: Shake on player damage
+- **WHEN** the player takes any damage
+- **THEN** a mild camera shake occurs
+
+### Requirement: Damage flash
+The renderer SHALL flash the screen red briefly when the player takes damage.
+
+#### Scenario: Red flash
+- **WHEN** the player takes damage
+- **THEN** a semi-transparent red overlay flashes on screen for ~0.1 seconds
 
