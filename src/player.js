@@ -38,6 +38,9 @@ export class Player {
     // Passive stat tracking (for evolution checks)
     this.passiveStats = {};
 
+    // Visual effects
+    this.hitFlashTimer = 0;
+
     // Facing direction (for rendering / aiming)
     this.facingX = 0;
     this.facingY = -1;
@@ -62,6 +65,7 @@ export class Player {
 
     const actual = Math.max(1, amount - this.armor);
     this.hp = Math.max(0, this.hp - actual);
+    this.hitFlashTimer = 0.1;
 
     if (this.hp <= 0) {
       this.hp = 0;
@@ -81,6 +85,9 @@ export class Player {
         this.invincibleTimer = 0;
       }
     }
+
+    // Hit flash decay
+    if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt;
 
     // HP regeneration
     if (this.regen > 0 && this.alive) {
@@ -174,6 +181,7 @@ export class Player {
     this.magnetRange = CONFIG.player.magnetRange;
     this.invincible = false;
     this.invincibleTimer = 0;
+    this.hitFlashTimer = 0;
     this.level = 1;
     this.exp = 0;
     this.kills = 0;

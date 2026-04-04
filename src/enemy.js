@@ -15,6 +15,7 @@ export class Enemy {
     this.color = typeDef.color;
     this.exp = typeDef.exp;
     this.alive = true;
+    this.hitFlashTimer = 0;
 
     // Shooter cooldown
     this.fireCooldown = typeDef.behavior?.fireRate || 0;
@@ -22,6 +23,7 @@ export class Enemy {
 
   takeDamage(amount) {
     this.hp = Math.max(0, this.hp - amount);
+    this.hitFlashTimer = 0.1;
     if (this.hp <= 0) {
       this.alive = false;
     }
@@ -29,6 +31,7 @@ export class Enemy {
 
   update(playerPos, dt, enemyProjectiles, spawnedMinions) {
     if (!this.alive) return;
+    if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt;
     const behavior = behaviors[this.type];
     if (behavior) {
       behavior(this, playerPos, dt, enemyProjectiles, spawnedMinions);

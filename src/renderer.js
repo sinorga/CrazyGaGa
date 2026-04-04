@@ -16,6 +16,12 @@ export class Renderer {
 
     // Damage flash
     this.damageFlashTimer = 0;
+
+    // Level-up flash
+    this.levelUpFlashTimer = 0;
+
+    // Screen transition
+    this.transition = null; // { alpha, direction: 'in'|'out', speed, callback }
   }
 
   clear(camera) {
@@ -55,7 +61,7 @@ export class Renderer {
     ctx.strokeRect(-camera.x, -camera.y, map.width, map.height);
   }
 
-  drawPlayer(player, camera) {
+  drawPlayer(player, camera, elapsed = 0) {
     const ctx = this.ctx;
     const sx = player.x - camera.x;
     const sy = player.y - camera.y;
@@ -65,10 +71,14 @@ export class Renderer {
       return;
     }
 
-    // Body
-    ctx.fillStyle = CONFIG.player.color;
+    const pulse = Math.sin(elapsed * 3) * 1;
+    const r = player.radius + pulse;
+
+    // Hit flash
+    const isFlash = player.hitFlashTimer > 0;
+    ctx.fillStyle = isFlash ? '#ffffff' : CONFIG.player.color;
     ctx.beginPath();
-    ctx.arc(sx, sy, player.radius, 0, Math.PI * 2);
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
     ctx.fill();
 
     // Direction indicator
@@ -76,11 +86,11 @@ export class Renderer {
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(sx, sy);
-    ctx.lineTo(sx + player.facingX * player.radius * 1.5, sy + player.facingY * player.radius * 1.5);
+    ctx.lineTo(sx + player.facingX * r * 1.5, sy + player.facingY * r * 1.5);
     ctx.stroke();
   }
 
-  drawEnemies(enemies, camera) {
+  drawEnemies(enemies, camera, elapsed = 0) {
     const ctx = this.ctx;
     for (const e of enemies) {
       if (!e.alive) continue;
@@ -90,10 +100,14 @@ export class Renderer {
       // Skip if off screen
       if (sx < -50 || sx > this.canvas.width + 50 || sy < -50 || sy > this.canvas.height + 50) continue;
 
-      // Body
-      ctx.fillStyle = e.color;
+      const pulse = Math.sin(elapsed * 3 + e.x * 0.1) * 1;
+      const r = e.radius + pulse;
+
+      // Hit flash
+      const isFlash = e.hitFlashTimer > 0;
+      ctx.fillStyle = isFlash ? '#ffffff' : e.color;
       ctx.beginPath();
-      ctx.arc(sx, sy, e.radius, 0, Math.PI * 2);
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.fill();
 
       // HP bar (only if damaged)
@@ -137,25 +151,29 @@ export class Renderer {
     }
   }
 
-  drawPickups(pickups, camera) {
+  drawPickups(pickups, camera, elapsed = 0) {
     const ctx = this.ctx;
     for (const p of pickups) {
       if (!p.alive) continue;
       const sx = p.x - camera.x;
       const sy = p.y - camera.y;
 
+      const pulse = Math.sin(elapsed * 5 + p.x * 0.2) * 2;
+
       // Diamond shape for EXP gems
       ctx.fillStyle = p.color;
       ctx.save();
       ctx.translate(sx, sy);
       ctx.rotate(Math.PI / 4);
-      ctx.fillRect(-p.radius / 2, -p.radius / 2, p.radius, p.radius);
+      const s = p.radius + pulse;
+      ctx.fillRect(-s / 2, -s / 2, s, s);
       ctx.restore();
 
-      // Glow
-      ctx.globalAlpha = 0.3;
+      // Pulsing glow ring
+      const glowAlpha = 0.2 + Math.sin(elapsed * 5 + p.x * 0.2) * 0.15;
+      ctx.globalAlpha = glowAlpha;
       ctx.beginPath();
-      ctx.arc(sx, sy, p.radius + 3, 0, Math.PI * 2);
+      ctx.arc(sx, sy, p.radius + 4 + pulse, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -332,6 +350,42 @@ export class Renderer {
     ctx.fillText(boss.typeDef.name, this.canvas.width / 2, barY - 4);
   }
 
+  drawBossEntrance(canvas, bossEntrance) {
+    if (!bossEntrance) return;
+    const ctx = this.ctx;
+    const cx = canvas.width / 2;
+    const t = bossEntrance.timer;
+
+    if (t > 1.0) {
+      // Phase 1: darkening + WARNING text
+      const phase = (2.0 - t); // 0→1
+      const darkAlpha = Math.min(0.4, phase * 0.4);
+      ctx.fillStyle = `rgba(0, 0, 0, ${darkAlpha})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Pulsing WARNING text
+      const pulse = Math.sin(phase * 12) * 0.3 + 0.7;
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#ff2222';
+      ctx.font = 'bold 28px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚠ WARNING ⚠', cx, canvas.height * 0.4);
+      ctx.globalAlpha = 1;
+    } else {
+      // Phase 2: boss name + fade out
+      const darkAlpha = t * 0.4; // fading out
+      ctx.fillStyle = `rgba(0, 0, 0, ${darkAlpha})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.globalAlpha = Math.min(1, (1.0 - t) * 2);
+      ctx.fillStyle = '#ff6666';
+      ctx.font = 'bold 22px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(bossEntrance.bossName || 'BOSS', cx, canvas.height * 0.4);
+      ctx.globalAlpha = 1;
+    }
+  }
+
   drawPauseOverlay(canvas) {
     const ctx = this.ctx;
     const cx = canvas.width / 2;
@@ -380,12 +434,25 @@ export class Renderer {
     this.damageFlashTimer = 0.1;
   }
 
+  triggerLevelUpFlash() {
+    this.levelUpFlashTimer = 0.15;
+  }
+
+  startTransition(direction, callback) {
+    this.transition = {
+      alpha: direction === 'out' ? 0 : 1,
+      direction,
+      speed: 1 / 0.3, // 0.3s duration
+      callback,
+    };
+  }
+
   updateEffects(dt) {
     // Decay shake
     if (this.shakeIntensity > 0) {
       this.shakeOffsetX = (Math.random() - 0.5) * 2 * this.shakeIntensity;
       this.shakeOffsetY = (Math.random() - 0.5) * 2 * this.shakeIntensity;
-      this.shakeIntensity *= 0.85; // decay
+      this.shakeIntensity *= 0.85;
       if (this.shakeIntensity < 0.5) {
         this.shakeIntensity = 0;
         this.shakeOffsetX = 0;
@@ -396,6 +463,29 @@ export class Renderer {
     // Decay damage flash
     if (this.damageFlashTimer > 0) {
       this.damageFlashTimer -= dt;
+    }
+
+    // Decay level-up flash
+    if (this.levelUpFlashTimer > 0) {
+      this.levelUpFlashTimer -= dt;
+    }
+
+    // Screen transition
+    if (this.transition) {
+      const t = this.transition;
+      if (t.direction === 'out') {
+        t.alpha += t.speed * dt;
+        if (t.alpha >= 1) {
+          t.alpha = 1;
+          if (t.callback) t.callback();
+          this.transition = { alpha: 1, direction: 'in', speed: t.speed, callback: null };
+        }
+      } else {
+        t.alpha -= t.speed * dt;
+        if (t.alpha <= 0) {
+          this.transition = null;
+        }
+      }
     }
   }
 
@@ -411,6 +501,23 @@ export class Renderer {
       const ctx = this.ctx;
       const alpha = Math.min(0.3, this.damageFlashTimer / 0.1 * 0.3);
       ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+  }
+
+  drawLevelUpFlash() {
+    if (this.levelUpFlashTimer > 0) {
+      const ctx = this.ctx;
+      const alpha = Math.min(0.2, this.levelUpFlashTimer / 0.15 * 0.2);
+      ctx.fillStyle = `rgba(255, 221, 68, ${alpha})`;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+  }
+
+  drawTransition() {
+    if (this.transition) {
+      const ctx = this.ctx;
+      ctx.fillStyle = `rgba(0, 0, 0, ${Math.max(0, Math.min(1, this.transition.alpha))})`;
       ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
   }

@@ -57,6 +57,10 @@ export class Game {
 
     // Damage events for renderer
     this.onPlayerDamage = null; // callback: (isBoss) => {}
+    this.onLevelUpFlash = null; // callback: () => {}
+
+    // Boss entrance effect
+    this.bossEntrance = null; // { timer, bossName }
 
     // Meta progression
     this.meta = loadMeta();
@@ -133,6 +137,12 @@ export class Game {
   triggerLevelUp() {
     if (this.state !== 'playing') return;
     this.state = 'levelup';
+
+    // Golden celebration burst
+    this.particles.emit(this.player.x, this.player.y, 20, '#ffdd44', {
+      speedMin: 50, speedMax: 150, sizeMin: 3, sizeMax: 7, lifetime: 0.8, gravity: -30,
+    });
+    if (this.onLevelUpFlash) this.onLevelUpFlash();
 
     // Check for evolution eligibility
     const evolutionChoices = [];
@@ -225,6 +235,14 @@ export class Game {
 
     this.player.update(dt);
 
+    // Boss entrance timer
+    if (this.bossEntrance) {
+      this.bossEntrance.timer -= dt;
+      if (this.bossEntrance.timer <= 0) {
+        this.bossEntrance = null;
+      }
+    }
+
     // Boss spawn on kill threshold
     if (!this.currentBoss && this.player.kills >= this.nextBossKills) {
       this.bossPhase++;
@@ -236,6 +254,7 @@ export class Game {
         const by = this.player.y + Math.sin(angle) * dist;
         this.currentBoss = new Enemy(bx, by, bossDef);
         this.enemies.push(this.currentBoss);
+        this.bossEntrance = { timer: 2.0, bossName: bossDef.name };
       }
       this.nextBossKills += CONFIG.waves.bossKillThreshold;
     }
@@ -350,6 +369,10 @@ export class Game {
           proj.markHit(enemy._idx);
           proj.onHit();
 
+          const dmg = Math.round(proj.damage);
+          const dmgColor = dmg >= 50 ? '#ffdd44' : '#ffffff';
+          const dmgSize = Math.min(20, 12 + Math.floor(dmg / 10));
+          this.particles.emitText(enemy.x, enemy.y - enemy.radius, dmg, dmgColor, { fontSize: dmgSize });
           this.particles.emit(enemy.x, enemy.y, 4, enemy.color, { speedMax: 80, lifetime: 0.2 });
 
           if (!enemy.alive) {
@@ -375,6 +398,8 @@ export class Game {
               enemy._orbHitTimers[key] = weapon.config.hitCooldown;
 
               enemy.takeDamage(orb.damage);
+              const orbDmg = Math.round(orb.damage);
+              this.particles.emitText(enemy.x, enemy.y - enemy.radius, orbDmg, '#ffffff', { fontSize: 12 });
               this.particles.emit(enemy.x, enemy.y, 3, weapon.color, { speedMax: 60, lifetime: 0.15 });
 
               if (!enemy.alive) {
@@ -393,6 +418,7 @@ export class Game {
         if (!enemy.alive) continue;
         if (circlesOverlap(this.player, enemy)) {
           this.player.takeDamage(enemy.damage);
+          this.particles.emitText(this.player.x, this.player.y - this.player.radius, Math.round(enemy.damage), '#ff4444', { fontSize: 16 });
           this.particles.emit(this.player.x, this.player.y, 6, '#ff4444', { speedMax: 100, lifetime: 0.3 });
           if (this.onPlayerDamage) this.onPlayerDamage(enemy.type === 'boss');
           break;
@@ -410,6 +436,7 @@ export class Game {
         const minDist = proj.radius + this.player.radius;
         if (dist < minDist * minDist) {
           this.player.takeDamage(proj.damage);
+          this.particles.emitText(this.player.x, this.player.y - this.player.radius, Math.round(proj.damage), '#ff4444', { fontSize: 16 });
           proj.alive = false;
           this.particles.emit(this.player.x, this.player.y, 6, '#ff4444', { speedMax: 100, lifetime: 0.3 });
           if (this.onPlayerDamage) this.onPlayerDamage(false);

@@ -43,6 +43,9 @@
       renderer.triggerDamageFlash();
       renderer.triggerShake(isBoss ? 12 : 4);
     };
+    game.onLevelUpFlash = () => {
+      renderer.triggerLevelUpFlash();
+    };
 
     // Click/tap handler for UI
     // 'click' works on desktop; on mobile, touchstart preventDefault blocks click,
@@ -132,17 +135,21 @@
       const cam = renderer.applyShake(game.camera);
       renderer.clear(cam);
       renderer.drawMap(cam);
-      renderer.drawPickups(game.pickups, cam);
-      renderer.drawEnemies(game.enemies, cam);
+      renderer.drawPickups(game.pickups, cam, game.elapsed);
+      renderer.drawEnemies(game.enemies, cam, game.elapsed);
       renderer.drawProjectiles(game.projectiles, cam);
       renderer.drawEnemyProjectiles(game.enemyProjectiles, cam);
       renderer.drawOrbitWeapons(game.weaponManager.weapons, cam);
       game.particles.render(ctx, cam);
-      renderer.drawPlayer(game.player, cam);
+      renderer.drawPlayer(game.player, cam, game.elapsed);
       renderer.drawDamageFlash();
+      renderer.drawLevelUpFlash();
       renderer.drawHUD(game.player, game.elapsed, game.runGold, game.player.skillLevels);
       if (game.currentBoss) {
         renderer.drawBossHPBar(game.currentBoss);
+      }
+      if (game.bossEntrance) {
+        renderer.drawBossEntrance(canvas, game.bossEntrance);
       }
       renderer.drawJoystick(game.input);
 
@@ -158,6 +165,7 @@
       if (game.state === 'victory') {
         renderer.drawVictory(game.player, game.elapsed, canvas, game.runGold);
       }
+      renderer.drawTransition();
     }
 
     // Start loop

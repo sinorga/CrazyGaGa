@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 export class ParticleSystem {
   constructor() {
     this.particles = [];
+    this.textParticles = [];
   }
 
   emit(x, y, count, color, opts = {}) {
@@ -33,6 +34,22 @@ export class ParticleSystem {
     }
   }
 
+  emitText(x, y, text, color, opts = {}) {
+    const { lifetime = 0.8, fontSize = 14 } = opts;
+    if (this.textParticles.length >= 30) return;
+    this.textParticles.push({
+      x,
+      y,
+      text: String(text),
+      color,
+      fontSize,
+      vx: (Math.random() - 0.5) * 30,
+      vy: -50,
+      life: lifetime,
+      maxLife: lifetime,
+    });
+  }
+
   update(dt) {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -42,6 +59,15 @@ export class ParticleSystem {
       p.life -= dt;
       if (p.life <= 0) {
         this.particles.splice(i, 1);
+      }
+    }
+    for (let i = this.textParticles.length - 1; i >= 0; i--) {
+      const p = this.textParticles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      if (p.life <= 0) {
+        this.textParticles.splice(i, 1);
       }
     }
   }
@@ -57,6 +83,15 @@ export class ParticleSystem {
         p.y - camera.y - size / 2,
         size, size
       );
+    }
+    // Text particles (damage numbers)
+    for (const p of this.textParticles) {
+      const alpha = Math.max(0, p.life / p.maxLife);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.font = `bold ${p.fontSize}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(p.text, p.x - camera.x, p.y - camera.y);
     }
     ctx.globalAlpha = 1;
   }
