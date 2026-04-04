@@ -35,9 +35,20 @@
     const renderer = new Renderer(ctx, canvas);
 
     // Click/tap handler for UI
+    // 'click' works on desktop; on mobile, touchstart preventDefault blocks click,
+    // so we also listen for touchend to handle UI taps
     canvas.addEventListener('click', (e) => {
       const rect = canvas.getBoundingClientRect();
       game.handleClick(e.clientX - rect.left, e.clientY - rect.top);
+    });
+    canvas.addEventListener('touchend', (e) => {
+      if (game.state !== 'playing') {
+        const touch = e.changedTouches[0];
+        if (touch) {
+          const rect = canvas.getBoundingClientRect();
+          game.handleClick(touch.clientX - rect.left, touch.clientY - rect.top);
+        }
+      }
     });
 
     // Fixed timestep game loop
@@ -49,6 +60,9 @@
       const dt = Math.min((timestamp - lastTime) / 1000, 0.1); // cap at 100ms
       lastTime = timestamp;
       accumulator += dt;
+
+      // Enable joystick only during gameplay
+      game.input.enabled = (game.state === 'playing');
 
       // Fixed timestep updates
       while (accumulator >= FIXED_DT) {

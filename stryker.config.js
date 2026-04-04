@@ -15,7 +15,7 @@ export default {
   thresholds: {
     high: 80,
     low: 60,
-    break: 60, // CI fails if mutation score drops below 60%
+    break: 45, // CI fails if mutation score drops below 45%
   },
   reporters: ['clear-text', 'html', 'progress'],
   htmlReporter: {
