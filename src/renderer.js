@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js';
+import { CONFIG, VERSION } from './config.js';
 import { SETTINGS_DEFS } from './settings.js';
 import { UPGRADE_DEFINITIONS } from './data/upgrades.js';
 import { CHARACTER_DEFINITIONS } from './data/characters.js';
@@ -770,6 +770,12 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillText(labels[i], bx + btnW / 2, btnY + 26);
     }
+
+    // Version
+    ctx.fillStyle = '#444466';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`v${VERSION}`, canvas.width - 10, canvas.height - 10);
   }
 
   drawShopPage(canvas, meta) {
