@@ -52,13 +52,11 @@
       game.handleClick(e.clientX - rect.left, e.clientY - rect.top);
     });
     canvas.addEventListener('touchend', (e) => {
-      if (game.state !== 'playing') {
-        e.preventDefault(); // prevent duplicate click event on mobile
-        const touch = e.changedTouches[0];
-        if (touch) {
-          const rect = canvas.getBoundingClientRect();
-          game.handleClick(touch.clientX - rect.left, touch.clientY - rect.top);
-        }
+      e.preventDefault(); // prevent duplicate click event on mobile
+      const touch = e.changedTouches[0];
+      if (touch) {
+        const rect = canvas.getBoundingClientRect();
+        game.handleClick(touch.clientX - rect.left, touch.clientY - rect.top);
       }
     });
 
