@@ -764,7 +764,6 @@ export class Renderer {
     ctx.fillStyle = '#666688';
     ctx.font = '13px monospace';
     ctx.fillText('WASD / 虛擬搖桿 移動', cx, anchorY + 100);
-    ctx.fillText('靜止時自動攻擊', cx, anchorY + 118);
 
     // Row of 3 buttons: 商店, 角色, 設定
     const btnW = 90;
