@@ -2,7 +2,7 @@
 
 ## Version Bumping (REQUIRED)
 
-**Every time you commit or merge to `main`, you MUST bump the version.**
+**Every commit to `main` MUST include a version bump — no exceptions.**
 
 Two places must stay in sync:
 
@@ -14,6 +14,9 @@ Two places must stay in sync:
 - Bug fixes / small tweaks → bump **PATCH** (e.g. `1.0.1` → `1.0.2`)
 - New features → bump **MINOR** (e.g. `1.0.1` → `1.1.0`)
 - Breaking changes → bump **MAJOR** (e.g. `1.1.0` → `2.0.0`)
+
+This applies to **every direct commit and every merge commit** on `main` —
+including small fixes, typos, and refactors.
 
 The `?v=X.Y.Z` query string on `index.html` forces browsers to reload
 `main.js` when the version changes, busting the ES module cache.
@@ -118,8 +121,8 @@ npm run test:mutate:ci  # Mutation testing for CI
 
 ### Commit Conventions
 - Commits go to `main` via feature branches.
-- **Always bump version** before committing to `main` (see Version Bumping above).
-- Commit messages: short imperative summary, e.g. `Fix enemy spawning near map edge (v1.2.2)`.
+- **Every commit to `main` must bump the version** (see Version Bumping above). No commit lands on `main` without a version change.
+- Commit messages: short imperative summary ending with the new version, e.g. `Fix enemy spawning near map edge (v1.2.2)`.
 
 ### localStorage Keys
 | Key | Owner | Purpose |
