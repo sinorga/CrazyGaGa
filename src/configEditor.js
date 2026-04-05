@@ -50,7 +50,7 @@ function flattenObject(obj, prefix, defaults, out) {
     const path = prefix ? `${prefix}.${key}` : key;
     if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
       flattenObject(val, path, defVal, out);
-    } else if (typeof val === 'number') {
+    } else if (typeof val === 'number' || typeof val === 'boolean') {
       out.push({ label: path, value: val, defaultValue: defVal, path, isModified: val !== defVal });
     }
   }
