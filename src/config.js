@@ -1,5 +1,5 @@
 // Game configuration - all tunable values in one place
-export const VERSION = '1.2.1';
+export const VERSION = '1.2.2';
 
 export const CONFIG = {
   // Display
