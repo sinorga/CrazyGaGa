@@ -76,19 +76,31 @@ export class Renderer {
     const pulse = Math.sin(elapsed * 3) * 1;
     const r = player.radius + pulse;
 
-    // Hit flash
-    const isFlash = player.hitFlashTimer > 0;
-    ctx.fillStyle = isFlash ? '#ffffff' : CONFIG.player.color;
-    ctx.beginPath();
-    ctx.arc(sx, sy, r, 0, Math.PI * 2);
-    ctx.fill();
+    // Draw emoji icon
+    ctx.save();
+    ctx.font = `${Math.round(r * 2.4)}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(player.icon || '🗡️', sx, sy);
+    ctx.restore();
 
-    // Direction indicator
-    ctx.strokeStyle = '#ffffff';
+    // Hit flash overlay
+    if (player.hitFlashTimer > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Direction indicator (small line in front of player)
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(sx + player.facingX * r * 1.5, sy + player.facingY * r * 1.5);
+    ctx.moveTo(sx + player.facingX * r, sy + player.facingY * r);
+    ctx.lineTo(sx + player.facingX * (r + 7), sy + player.facingY * (r + 7));
     ctx.stroke();
   }
 
@@ -105,21 +117,30 @@ export class Renderer {
       const pulse = Math.sin(elapsed * 3 + e.x * 0.1) * 1;
       const r = e.radius + pulse;
 
-      // Hit flash
-      const isFlash = e.hitFlashTimer > 0;
-      ctx.fillStyle = isFlash ? '#ffffff' : e.color;
-      ctx.beginPath();
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      // Draw emoji icon
+      ctx.save();
+      ctx.font = `${Math.round(r * 2.4)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.icon, sx, sy);
+      ctx.restore();
+
+      // Hit flash overlay
+      if (e.hitFlashTimer > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
 
       // HP bar (only if damaged)
       if (e.hp < e.maxHp) {
-        const barW = e.radius * 2;
+        const barW = e.radius * 2.4;
         const barH = 3;
-        const barY = sy - e.radius - 6;
+        const barY = sy - r - 5;
         ctx.fillStyle = '#333';
         ctx.fillRect(sx - barW / 2, barY, barW, barH);
         ctx.fillStyle = '#ff4444';
@@ -166,24 +187,15 @@ export class Renderer {
       const sx = p.x - camera.x;
       const sy = p.y - camera.y;
 
-      const pulse = Math.sin(elapsed * 5 + p.x * 0.2) * 2;
+      const pulse = Math.sin(elapsed * 5 + p.x * 0.2) * 1.5;
+      const size = (p.radius + pulse) * 2.6;
 
-      // Diamond shape for EXP gems
-      ctx.fillStyle = p.color;
       ctx.save();
-      ctx.translate(sx, sy);
-      ctx.rotate(Math.PI / 4);
-      const s = p.radius + pulse;
-      ctx.fillRect(-s / 2, -s / 2, s, s);
+      ctx.font = `${Math.round(size)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('💎', sx, sy);
       ctx.restore();
-
-      // Pulsing glow ring
-      const glowAlpha = 0.2 + Math.sin(elapsed * 5 + p.x * 0.2) * 0.15;
-      ctx.globalAlpha = glowAlpha;
-      ctx.beginPath();
-      ctx.arc(sx, sy, p.radius + 4 + pulse, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
     }
   }
 

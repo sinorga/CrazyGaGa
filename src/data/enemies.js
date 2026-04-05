@@ -24,6 +24,7 @@ export const ENEMY_TYPES = [
   {
     id: 'slime',
     name: '史萊姆',
+    icon: '🟢',
     type: 'charger',
     radius: 12,
     hp: 15,
@@ -37,6 +38,7 @@ export const ENEMY_TYPES = [
   {
     id: 'fast_bat',
     name: '蝙蝠',
+    icon: '🦇',
     type: 'charger',
     radius: 10,
     hp: 8,
@@ -50,6 +52,7 @@ export const ENEMY_TYPES = [
   {
     id: 'skeleton',
     name: '骷髏兵',
+    icon: '💀',
     type: 'charger',
     radius: 14,
     hp: 30,
@@ -65,6 +68,7 @@ export const ENEMY_TYPES = [
   {
     id: 'mage',
     name: '暗黑法師',
+    icon: '🧙',
     type: 'shooter',
     radius: 13,
     hp: 20,
@@ -86,6 +90,7 @@ export const ENEMY_TYPES = [
   {
     id: 'archer',
     name: '暗影弓手',
+    icon: '🏹',
     type: 'shooter',
     radius: 12,
     hp: 16,
@@ -109,6 +114,7 @@ export const ENEMY_TYPES = [
   {
     id: 'golem',
     name: '石魔像',
+    icon: '🪨',
     type: 'tank',
     radius: 22,
     hp: 120,
@@ -124,6 +130,7 @@ export const ENEMY_TYPES = [
   {
     id: 'bomb_bug',
     name: '炸彈蟲',
+    icon: '💣',
     type: 'exploder',
     radius: 11,
     hp: 12,
@@ -144,6 +151,7 @@ export const ENEMY_TYPES = [
   {
     id: 'necromancer',
     name: '亡靈巫師',
+    icon: '☠️',
     type: 'summoner',
     radius: 15,
     hp: 40,
@@ -165,6 +173,7 @@ export const ENEMY_TYPES = [
   {
     id: 'boss_demon',
     name: '烈焰惡魔',
+    icon: '😈',
     type: 'boss',
     radius: 40,
     hp: 800,
@@ -183,6 +192,7 @@ export const ENEMY_TYPES = [
   {
     id: 'boss_lich',
     name: '巫妖王',
+    icon: '👾',
     type: 'boss',
     radius: 35,
     hp: 1500,

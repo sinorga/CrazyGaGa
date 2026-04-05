@@ -13,6 +13,7 @@ export const CHARACTER_DEFINITIONS = [
   {
     id: 'warrior',
     name: '戰士',
+    icon: '🗡️',
     description: '均衡的初始角色',
     startingWeapon: 'arrow',
     color: '#00d4ff',
@@ -25,6 +26,7 @@ export const CHARACTER_DEFINITIONS = [
   {
     id: 'mage',
     name: '法師',
+    icon: '🔮',
     description: '速度快但血量低，起始武器為魔法球',
     startingWeapon: 'magic_orb',
     color: '#aa66ff',
@@ -37,6 +39,7 @@ export const CHARACTER_DEFINITIONS = [
   {
     id: 'paladin',
     name: '聖騎士',
+    icon: '🛡️',
     description: '血量高但速度慢，起始武器為聖劍雨',
     startingWeapon: 'holy_sword',
     color: '#ffdd44',

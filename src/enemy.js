@@ -13,6 +13,7 @@ export class Enemy {
     this.speed = typeDef.speed;
     this.damage = typeDef.damage;
     this.color = typeDef.color;
+    this.icon = typeDef.icon || '👾';
     this.exp = typeDef.exp;
     this.alive = true;
     this.hitFlashTimer = 0;

@@ -87,6 +87,7 @@ export class Game {
       this.player.maxHp = charDef.baseStats.maxHp;
       this.player.hp = charDef.baseStats.maxHp;
       this.player.speed = charDef.baseStats.speed;
+      this.player.icon = charDef.icon || '🗡️';
       CONFIG.player.color = charDef.color;
       this._startingWeapon = charDef.startingWeapon;
     }

@@ -5,6 +5,7 @@ export class Player {
     this.x = x;
     this.y = y;
     this.radius = getConfig().player.radius;
+    this.icon = '🗡️'; // overridden by selected character
 
     // HP
     this.maxHp = getConfig().player.maxHp;
