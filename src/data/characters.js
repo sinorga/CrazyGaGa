@@ -13,7 +13,7 @@ export const CHARACTER_DEFINITIONS = [
   {
     id: 'warrior',
     name: '戰士',
-    icon: '🗡️',
+    icon: '🤺',
     description: '均衡的初始角色',
     startingWeapon: 'arrow',
     color: '#00d4ff',
