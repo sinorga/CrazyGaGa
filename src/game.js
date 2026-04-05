@@ -1,6 +1,6 @@
 import { CONFIG } from './config.js';
 import { getConfig, getRandomSkillChoices, getSkillDef as getSkillDefinition, getEnemyType, getBossForPhase, getCharacterDef as getCharacterDefinition, getUpgradeDefs, getCharacterDefs, reloadCache } from './gameConfig.js';
-import { createConfigEditorState, handleClick as ceHandleClick, handleScroll as ceHandleScroll, buildFields as ceBuildFields, cleanup as ceCleanup } from './configEditor.js';
+import { createConfigEditorState, handleClick as ceHandleClick, handleScroll as ceHandleScroll, handleDrag as ceHandleDrag, buildFields as ceBuildFields, cleanup as ceCleanup } from './configEditor.js';
 import { Input } from './input.js';
 import { Player } from './player.js';
 import { Enemy } from './enemy.js';
@@ -11,7 +11,7 @@ import { SpatialHash, circlesOverlap, distance } from './collision.js';
 import { ParticleSystem } from './particles.js';
 import { updateBossAI } from './boss.js';
 import { canEvolve, getEvolutionRecipe } from './data/evolutions.js';
-import { SETTINGS_DEFS, loadSettings, saveSettings, resetSettings, getDefaults, applyUserSettings } from './settings.js';
+import { loadSettings, getDefaults, applyUserSettings } from './settings.js';
 import { loadMeta, saveMeta, purchaseUpgrade, unlockCharacter, selectCharacter, getUpgradeBonus } from './meta.js';
 
 export class Game {
@@ -20,7 +20,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'settings' | 'shop' | 'characters' | 'config_editor' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory'
+    this.state = 'menu'; // 'menu' | 'shop' | 'characters' | 'config_editor' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory'
     this.elapsed = 0;
 
     // Entities
@@ -47,11 +47,6 @@ export class Game {
     this.currentBoss = null;
     this.bossPhase = 0;
     this.nextBossKills = CONFIG.waves.bossKillThreshold;
-
-    // Settings state
-    this.settingsValues = loadSettings() || getDefaults();
-    this.settingsScroll = 0;
-    this.activeSlider = -1; // index of slider being dragged
 
     // Damage events for renderer
     this.onPlayerDamage = null; // callback: (isBoss) => {}
@@ -118,7 +113,7 @@ export class Game {
 
     this.weaponManager.addWeapon(this._startingWeapon);
     // Apply cooldown multiplier from settings
-    const cdMult = this.settingsValues?.cooldownMultiplier ?? 1.0;
+    const cdMult = (loadSettings() || getDefaults()).cooldownMultiplier ?? 1.0;
     if (cdMult !== 1.0) {
       for (const w of this.weaponManager.weapons) {
         w.cooldown *= cdMult;
@@ -553,10 +548,10 @@ export class Game {
   handleClick(screenX, screenY) {
     if (this.state === 'menu') {
       // Row of 3 buttons: 商店, 角色, 設定
-      const btnW = 80;
+      const btnW = 90;
       const btnH = 40;
-      const gap = 10;
-      const totalW = btnW * 4 + gap * 3;
+      const gap = 15;
+      const totalW = btnW * 3 + gap * 2;
       const startX = this.canvas.width / 2 - totalW / 2;
       const btnY = this.canvas.height / 2 + 140;
 
@@ -575,18 +570,9 @@ export class Game {
         this.state = 'characters';
         return;
       }
-      // Settings button
+      // Settings / Config editor button
       const setX = startX + (btnW + gap) * 2;
       if (screenX >= setX && screenX <= setX + btnW &&
-          screenY >= btnY && screenY <= btnY + btnH) {
-        this.settingsValues = loadSettings() || getDefaults();
-        this.settingsScroll = 0;
-        this.state = 'settings';
-        return;
-      }
-      // Config editor button
-      const cfgX = startX + (btnW + gap) * 3;
-      if (screenX >= cfgX && screenX <= cfgX + btnW &&
           screenY >= btnY && screenY <= btnY + btnH) {
         this.configEditorState = createConfigEditorState();
         this.state = 'config_editor';
@@ -608,10 +594,6 @@ export class Game {
     }
     if (this.state === 'characters') {
       this._handleCharactersClick(screenX, screenY);
-      return;
-    }
-    if (this.state === 'settings') {
-      this._handleSettingsClick(screenX, screenY);
       return;
     }
     if (this.state === 'playing') {
@@ -656,46 +638,6 @@ export class Game {
         }
       }
       return; // tap outside cards — do nothing, stay in levelup
-    }
-  }
-
-  _handleSettingsClick(screenX, screenY) {
-    const cx = this.canvas.width / 2;
-    const sliderW = 220;
-    const rowH = 55;
-    const startY = 80 - this.settingsScroll;
-
-    // Back button (top-left)
-    if (screenX < 80 && screenY < 50) {
-      saveSettings(this.settingsValues);
-      applyUserSettings();
-      this.state = 'menu';
-      return;
-    }
-
-    // Reset button (top-right)
-    if (screenX > this.canvas.width - 100 && screenY < 50) {
-      resetSettings();
-      this.settingsValues = getDefaults();
-      applyUserSettings();
-      return;
-    }
-
-    // Check slider taps — update value based on tap position on slider track
-    const sliderX = cx - sliderW / 2;
-    for (let i = 0; i < SETTINGS_DEFS.length; i++) {
-      const y = startY + i * rowH + 30;
-      if (screenY >= y - 10 && screenY <= y + 10 &&
-          screenX >= sliderX && screenX <= sliderX + sliderW) {
-        const def = SETTINGS_DEFS[i];
-        const ratio = Math.max(0, Math.min(1, (screenX - sliderX) / sliderW));
-        const raw = def.min + ratio * (def.max - def.min);
-        const snapped = Math.round(raw / def.step) * def.step;
-        this.settingsValues[def.key] = Math.min(def.max, Math.max(def.min, parseFloat(snapped.toFixed(4))));
-        saveSettings(this.settingsValues);
-        applyUserSettings();
-        return;
-      }
     }
   }
 
@@ -775,34 +717,13 @@ export class Game {
   }
 
   handleSettingsDrag(screenX, screenY) {
-    if (this.state !== 'settings') return;
-    const cx = this.canvas.width / 2;
-    const sliderW = 220;
-    const rowH = 55;
-    const startY = 80 - this.settingsScroll;
-    const sliderX = cx - sliderW / 2;
-
-    for (let i = 0; i < SETTINGS_DEFS.length; i++) {
-      const y = startY + i * rowH + 30;
-      if (screenY >= y - 15 && screenY <= y + 15 &&
-          screenX >= sliderX - 10 && screenX <= sliderX + sliderW + 10) {
-        const def = SETTINGS_DEFS[i];
-        const ratio = Math.max(0, Math.min(1, (screenX - sliderX) / sliderW));
-        const raw = def.min + ratio * (def.max - def.min);
-        const snapped = Math.round(raw / def.step) * def.step;
-        this.settingsValues[def.key] = Math.min(def.max, Math.max(def.min, parseFloat(snapped.toFixed(4))));
-        saveSettings(this.settingsValues);
-        applyUserSettings();
-        return;
-      }
+    if (this.state === 'config_editor' && this.configEditorState) {
+      ceHandleDrag(this.configEditorState, screenX, screenY, this.canvas);
     }
   }
 
   handleSettingsScroll(deltaY) {
-    if (this.state === 'settings') {
-      const maxScroll = Math.max(0, SETTINGS_DEFS.length * 55 + 100 - this.canvas.height);
-      this.settingsScroll = Math.max(0, Math.min(maxScroll, this.settingsScroll + deltaY));
-    } else if (this.state === 'config_editor' && this.configEditorState) {
+    if (this.state === 'config_editor' && this.configEditorState) {
       ceHandleScroll(this.configEditorState, deltaY, this.canvas);
     }
   }

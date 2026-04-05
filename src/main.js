@@ -27,41 +27,81 @@ game.onLevelUpFlash = () => {
   renderer.triggerLevelUpFlash();
 };
 
-// Click/tap handler for UI
-// 'click' works on desktop; on mobile, touchstart preventDefault blocks click,
-// so we also listen for touchend to handle UI taps
-canvas.addEventListener('click', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  game.handleClick(e.clientX - rect.left, e.clientY - rect.top);
-});
-canvas.addEventListener('touchend', (e) => {
-  e.preventDefault(); // prevent duplicate click event on mobile
-  const touch = e.changedTouches[0];
+// Touch tracking — used to distinguish scroll/drag from tap, and to scroll config editor
+let touchStartX = 0, touchStartY = 0, lastTouchY = 0, touchIntent = null;
+
+canvas.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
   if (touch) {
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    lastTouchY = touch.clientY;
+    touchIntent = null;
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchmove', (e) => {
+  const touch = e.touches[0];
+  if (!touch) return;
+
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+
+  // Determine intent on first significant movement
+  if (!touchIntent && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+    touchIntent = Math.abs(dx) > Math.abs(dy) ? 'drag' : 'scroll';
+  }
+
+  if (game.state === 'config_editor') {
+    const rect = canvas.getBoundingClientRect();
+    const tx = touch.clientX - rect.left;
+    const ty = touch.clientY - rect.top;
+
+    if (touchIntent === 'drag') {
+      game.handleSettingsDrag(tx, ty);
+    } else if (touchIntent === 'scroll') {
+      const delta = touch.clientY - lastTouchY;
+      if (Math.abs(delta) > 0) game.handleSettingsScroll(-delta);
+    }
+    e.preventDefault();
+  }
+
+  lastTouchY = touch.clientY;
+}, { passive: false });
+
+// Tap handler — only fires if movement was small (not a scroll/drag)
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  const touch = e.changedTouches[0];
+  if (!touch) return;
+
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+
+  // Suppress click if the finger moved more than ~12px (scroll/drag gesture)
+  if (Math.sqrt(dx * dx + dy * dy) < 12) {
     const rect = canvas.getBoundingClientRect();
     game.handleClick(touch.clientX - rect.left, touch.clientY - rect.top);
   }
 });
 
-// Slider drag support for settings
-canvas.addEventListener('touchmove', (e) => {
-  if (game.state === 'settings') {
-    const touch = e.touches[0];
-    if (touch) {
-      const rect = canvas.getBoundingClientRect();
-      game.handleSettingsDrag(touch.clientX - rect.left, touch.clientY - rect.top);
-    }
-  }
-});
+// Mouse drag for slider knobs in config editor
 canvas.addEventListener('mousemove', (e) => {
-  if (game.state === 'settings' && e.buttons === 1) {
+  if (game.state === 'config_editor' && e.buttons === 1) {
     const rect = canvas.getBoundingClientRect();
     game.handleSettingsDrag(e.clientX - rect.left, e.clientY - rect.top);
   }
 });
-// Scroll support for settings and config editor
+
+// Click handler for desktop
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  game.handleClick(e.clientX - rect.left, e.clientY - rect.top);
+});
+
+// Scroll support for config editor
 canvas.addEventListener('wheel', (e) => {
-  if (game.state === 'settings' || game.state === 'config_editor') {
+  if (game.state === 'config_editor') {
     game.handleSettingsScroll(e.deltaY);
     e.preventDefault();
   }
@@ -97,10 +137,6 @@ function loop(timestamp) {
 function render() {
   if (game.state === 'menu') {
     renderer.drawMenu(canvas, game.meta);
-    return;
-  }
-  if (game.state === 'settings') {
-    renderer.drawSettingsPage(canvas, game.settingsValues, game.settingsScroll);
     return;
   }
   if (game.state === 'shop') {

@@ -1,6 +1,7 @@
 import { CONFIG, VERSION } from './config.js';
 import { SETTINGS_DEFS } from './settings.js';
 import { getUpgradeDefs, getCharacterDefs, getSkillDefs } from './gameConfig.js';
+import { SETTINGS_ROW_H, SETTINGS_CONTENT_Y } from './configEditor.js';
 
 export class Renderer {
   constructor(ctx, canvas) {
@@ -753,16 +754,16 @@ export class Renderer {
     ctx.fillText('WASD / 虛擬搖桿 移動', cx, canvas.height / 2 + 100);
     ctx.fillText('靜止時自動攻擊', cx, canvas.height / 2 + 118);
 
-    // Row of 4 buttons: 商店, 角色, 設定, 配置
-    const btnW = 80;
+    // Row of 3 buttons: 商店, 角色, 設定
+    const btnW = 90;
     const btnH = 40;
-    const gap = 10;
-    const totalW = btnW * 4 + gap * 3;
+    const gap = 15;
+    const totalW = btnW * 3 + gap * 2;
     const startX = cx - totalW / 2;
     const btnY = canvas.height / 2 + 140;
-    const labels = ['商店', '角色', '設定', '配置'];
+    const labels = ['商店', '角色', '設定'];
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const bx = startX + i * (btnW + gap);
       ctx.fillStyle = '#2a2a4e';
       ctx.fillRect(bx, btnY, btnW, btnH);
@@ -942,80 +943,6 @@ export class Renderer {
     }
   }
 
-  drawSettingsPage(canvas, settingsValues, scrollY) {
-    const ctx = this.ctx;
-    const cx = canvas.width / 2;
-
-    ctx.fillStyle = CONFIG.canvas.backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Back button (top-left)
-    ctx.fillStyle = '#aaaacc';
-    ctx.font = '16px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('← 返回', 15, 32);
-
-    // Reset button (top-right)
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#ff6666';
-    ctx.fillText('重置預設', canvas.width - 15, 32);
-
-    // Title
-    ctx.fillStyle = '#00d4ff';
-    ctx.font = 'bold 24px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('遊戲設定', cx, 60);
-
-    // Slider rows
-    const sliderW = 220;
-    const sliderX = cx - sliderW / 2;
-    const rowH = 55;
-    const startY = 80 - scrollY;
-
-    ctx.save();
-    // Clip to below header
-    ctx.beginPath();
-    ctx.rect(0, 70, canvas.width, canvas.height - 70);
-    ctx.clip();
-
-    for (let i = 0; i < SETTINGS_DEFS.length; i++) {
-      const def = SETTINGS_DEFS[i];
-      const y = startY + i * rowH;
-      const sliderY = y + 30;
-      const value = settingsValues[def.key] ?? def.default;
-
-      // Label
-      ctx.fillStyle = '#ccccee';
-      ctx.font = '14px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(def.label, sliderX, y + 15);
-
-      // Value display
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#ffdd44';
-      const displayVal = def.step < 1 ? value.toFixed(2) : Math.round(value);
-      ctx.fillText(String(displayVal), sliderX + sliderW, y + 15);
-
-      // Slider track
-      ctx.fillStyle = '#333355';
-      ctx.fillRect(sliderX, sliderY - 4, sliderW, 8);
-
-      // Slider fill
-      const ratio = (value - def.min) / (def.max - def.min);
-      ctx.fillStyle = '#4466aa';
-      ctx.fillRect(sliderX, sliderY - 4, sliderW * ratio, 8);
-
-      // Slider knob
-      const knobX = sliderX + sliderW * ratio;
-      ctx.fillStyle = '#88aaff';
-      ctx.beginPath();
-      ctx.arc(knobX, sliderY, 8, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-
   drawConfigEditor(canvas, editorState) {
     const ctx = this.ctx;
     const W = canvas.width;
@@ -1029,9 +956,10 @@ export class Renderer {
     ctx.fillStyle = CONFIG.canvas.backgroundColor;
     ctx.fillRect(0, 0, W, H);
 
-    // ── Tab bar ──
-    const tabW = W / 6;
-    const { TABS, TAB_LABELS } = { TABS: ['global','enemies','weapons','passives','characters','upgrades'], TAB_LABELS: { global:'Global', enemies:'Enemies', weapons:'Weapons', passives:'Skills', characters:'Chars', upgrades:'Upgrades' } };
+    // ── Tab bar (7 tabs) ──
+    const TABS = ['settings', 'global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
+    const TAB_LABELS = { settings:'設定', global:'全域', enemies:'敵人', weapons:'武器', passives:'技能', characters:'角色', upgrades:'升級' };
+    const tabW = W / TABS.length;
     for (let i = 0; i < TABS.length; i++) {
       const tx = i * tabW;
       const active = editorState.activeTab === TABS[i];
@@ -1046,77 +974,138 @@ export class Renderer {
       ctx.fillText(TAB_LABELS[TABS[i]], tx + tabW / 2, TAB_BAR_H / 2 + 5);
     }
 
-    // ── Field list (clipped) ──
     const listTop = TAB_BAR_H;
     const listH = H - TAB_BAR_H - BOTTOM_H;
+
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, listTop, W, listH);
     ctx.clip();
 
-    const fields = editorState.fields;
-    const scrollY = editorState.scrollY;
-    const valueColX = W * LABEL_COL;
+    if (editorState.activeTab === 'settings') {
+      // ── Settings tab: slider controls ──
+      const sliderW = Math.min(260, W * 0.65);
+      const sliderX = W / 2 - sliderW / 2;
+      const scrollY = editorState.scrollY;
 
-    for (let i = 0; i < fields.length; i++) {
-      const fy = listTop + i * ROW_H - scrollY;
-      if (fy + ROW_H < listTop || fy > listTop + listH) continue;
+      for (let i = 0; i < SETTINGS_DEFS.length; i++) {
+        const def = SETTINGS_DEFS[i];
+        const rowY = SETTINGS_CONTENT_Y + i * SETTINGS_ROW_H - scrollY;
+        const sliderY = rowY + 30;
+        if (sliderY + 10 < listTop || rowY > listTop + listH) continue;
 
-      const f = fields[i];
-      if (f.isHeader) {
-        ctx.fillStyle = '#2a2a5e';
-        ctx.fillRect(0, fy, W, ROW_H);
-        ctx.fillStyle = '#8888cc';
-        ctx.font = 'bold 12px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(f.label, 10, fy + ROW_H / 2 + 5);
-      } else {
-        // Alternate row background
-        ctx.fillStyle = i % 2 === 0 ? '#14142a' : '#1a1a32';
-        ctx.fillRect(0, fy, W, ROW_H);
+        const value = editorState.settingsValues[def.key] ?? def.default;
+        const isModified = value !== def.default;
 
         // Label
-        ctx.fillStyle = f.isModified ? '#ffdd44' : '#aaaacc';
-        ctx.font = '12px monospace';
+        ctx.fillStyle = isModified ? '#ffdd44' : '#ccccee';
+        ctx.font = '14px monospace';
         ctx.textAlign = 'left';
-        const labelText = f.label.length > 30 ? '…' + f.label.slice(-29) : f.label;
-        ctx.fillText(labelText, 8, fy + ROW_H / 2 + 5);
+        ctx.fillText(def.label, sliderX, rowY + 15);
 
-        // Value divider
-        ctx.strokeStyle = '#333355';
-        ctx.lineWidth = 1;
+        // Value
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#ffdd44';
+        const displayVal = def.step < 1 ? value.toFixed(2) : Math.round(value);
+        ctx.fillText(String(displayVal), sliderX + sliderW, rowY + 15);
+
+        // Track
+        ctx.fillStyle = '#333355';
+        ctx.fillRect(sliderX, sliderY - 4, sliderW, 8);
+
+        // Fill
+        const ratio = (value - def.min) / (def.max - def.min);
+        ctx.fillStyle = isModified ? '#7744aa' : '#4466aa';
+        ctx.fillRect(sliderX, sliderY - 4, sliderW * ratio, 8);
+
+        // Knob
+        const knobX = sliderX + sliderW * ratio;
+        ctx.fillStyle = isModified ? '#dd88ff' : '#88aaff';
         ctx.beginPath();
-        ctx.moveTo(valueColX, fy);
-        ctx.lineTo(valueColX, fy + ROW_H);
-        ctx.stroke();
+        ctx.arc(knobX, sliderY, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
-        // Skip drawing value if input is active for this row
-        if (editorState._inputFieldIdx !== i) {
-          const displayVal = typeof f.value === 'number' && !Number.isInteger(f.value)
-            ? f.value.toFixed(3) : String(f.value);
-          ctx.fillStyle = f.isModified ? '#ffdd44' : '#88aaff';
-          ctx.font = `${f.isModified ? 'bold ' : ''}13px monospace`;
-          ctx.textAlign = 'right';
-          ctx.fillText(displayVal, W - 8, fy + ROW_H / 2 + 5);
+      // Scroll indicator for settings
+      const contentH = SETTINGS_DEFS.length * SETTINGS_ROW_H + 20;
+      if (contentH > listH) {
+        const barH = Math.max(20, listH * listH / contentH);
+        const barY = listTop + (editorState.scrollY / (contentH - listH)) * (listH - barH);
+        ctx.fillStyle = 'rgba(100,100,180,0.5)';
+        ctx.fillRect(W - 4, barY, 4, barH);
+      }
+    } else {
+      // ── Config tabs: two-column field list ──
+      const fields = editorState.fields;
+      const scrollY = editorState.scrollY;
+      const valueColX = W * LABEL_COL;
+
+      for (let i = 0; i < fields.length; i++) {
+        const fy = listTop + i * ROW_H - scrollY;
+        if (fy + ROW_H < listTop || fy > listTop + listH) continue;
+
+        const f = fields[i];
+        if (f.isHeader) {
+          ctx.fillStyle = '#2a2a5e';
+          ctx.fillRect(0, fy, W, ROW_H);
+          ctx.fillStyle = '#8888cc';
+          ctx.font = 'bold 12px monospace';
+          ctx.textAlign = 'left';
+          ctx.fillText(f.label, 10, fy + ROW_H / 2 + 5);
+        } else {
+          ctx.fillStyle = i % 2 === 0 ? '#14142a' : '#1a1a32';
+          ctx.fillRect(0, fy, W, ROW_H);
+
+          ctx.fillStyle = f.isModified ? '#ffdd44' : '#aaaacc';
+          ctx.font = '12px monospace';
+          ctx.textAlign = 'left';
+          const labelText = f.label.length > 30 ? '…' + f.label.slice(-29) : f.label;
+          ctx.fillText(labelText, 8, fy + ROW_H / 2 + 5);
+
+          ctx.strokeStyle = '#333355';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(valueColX, fy);
+          ctx.lineTo(valueColX, fy + ROW_H);
+          ctx.stroke();
+
+          if (editorState._inputFieldIdx !== i) {
+            const displayVal = typeof f.value === 'number' && !Number.isInteger(f.value)
+              ? f.value.toFixed(3) : String(f.value);
+            ctx.fillStyle = f.isModified ? '#ffdd44' : '#88aaff';
+            ctx.font = `${f.isModified ? 'bold ' : ''}13px monospace`;
+            ctx.textAlign = 'right';
+            ctx.fillText(displayVal, W - 8, fy + ROW_H / 2 + 5);
+          }
         }
       }
-    }
 
-    // Scroll indicator
-    const totalH = fields.length * ROW_H;
-    if (totalH > listH) {
-      const barH = Math.max(20, listH * listH / totalH);
-      const barY = listTop + (scrollY / (totalH - listH)) * (listH - barH);
-      ctx.fillStyle = 'rgba(100,100,180,0.5)';
-      ctx.fillRect(W - 4, barY, 4, barH);
+      // Scroll indicator
+      const totalH = fields.length * ROW_H;
+      if (totalH > listH) {
+        const barH = Math.max(20, listH * listH / totalH);
+        const barY = listTop + (editorState.scrollY / (totalH - listH)) * (listH - barH);
+        ctx.fillStyle = 'rgba(100,100,180,0.5)';
+        ctx.fillRect(W - 4, barY, 4, barH);
+      }
+
+      // Modified count badge
+      const modCount = fields.filter(f => !f.isHeader && f.isModified).length;
+      if (modCount > 0) {
+        ctx.fillStyle = '#ffdd44';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${modCount} modified`, W - 8, H - BOTTOM_H - 4);
+      }
     }
 
     ctx.restore();
 
     // ── Bottom buttons ──
-    const btnLabels = ['匯出 JSON', '匯入 JSON', '重設預設值', '← 返回'];
-    const btnW = 110;
-    const gap = 8;
+    const isSettings = editorState.activeTab === 'settings';
+    const btnLabels = isSettings ? ['重設預設值', '← 返回'] : ['匯出 JSON', '匯入 JSON', '重設預設值', '← 返回'];
+    const btnW = isSettings ? 140 : 110;
+    const gap = 10;
     const totalBW = btnLabels.length * btnW + (btnLabels.length - 1) * gap;
     const startX = (W - totalBW) / 2;
     const btnY = H - BOTTOM_H + 8;
@@ -1124,24 +1113,17 @@ export class Renderer {
 
     for (let i = 0; i < btnLabels.length; i++) {
       const bx = startX + i * (btnW + gap);
-      ctx.fillStyle = i === 2 ? '#4e1a1a' : (i === 3 ? '#1a1a4e' : '#1a3a1a');
+      const isReset = btnLabels[i].startsWith('重設');
+      const isBack = btnLabels[i].startsWith('←');
+      ctx.fillStyle = isReset ? '#4e1a1a' : (isBack ? '#1a1a4e' : '#1a3a1a');
       ctx.fillRect(bx, btnY, btnW, btnH);
-      ctx.strokeStyle = i === 2 ? '#cc4444' : (i === 3 ? '#4466cc' : '#44aa44');
+      ctx.strokeStyle = isReset ? '#cc4444' : (isBack ? '#4466cc' : '#44aa44');
       ctx.lineWidth = 1.5;
       ctx.strokeRect(bx, btnY, btnW, btnH);
       ctx.fillStyle = '#ccccee';
       ctx.font = '12px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(btnLabels[i], bx + btnW / 2, btnY + btnH / 2 + 5);
-    }
-
-    // Modified count badge
-    const modCount = editorState.fields.filter(f => !f.isHeader && f.isModified).length;
-    if (modCount > 0) {
-      ctx.fillStyle = '#ffdd44';
-      ctx.font = '11px monospace';
-      ctx.textAlign = 'right';
-      ctx.fillText(`${modCount} modified`, W - 8, H - BOTTOM_H - 4);
     }
   }
 }
