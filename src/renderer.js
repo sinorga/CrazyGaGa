@@ -1,7 +1,10 @@
 import { CONFIG, VERSION } from './config.js';
 import { SETTINGS_DEFS } from './settings.js';
 import { getUpgradeDefs, getCharacterDefs, getSkillDefs } from './gameConfig.js';
-import { SETTINGS_ROW_H, SETTINGS_CONTENT_Y } from './configEditor.js';
+
+// Mirror of constants in configEditor.js (kept in sync manually)
+const SETTINGS_ROW_H = 55;
+const SETTINGS_CONTENT_Y = 52; // TAB_BAR_H(42) + 10
 
 export class Renderer {
   constructor(ctx, canvas) {

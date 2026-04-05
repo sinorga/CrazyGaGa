@@ -20,9 +20,8 @@ const TAB_BAR_H = 42;
 const BOTTOM_H = 50;
 const LABEL_COL = 0.55; // fraction of width for label / value split
 
-// Settings tab layout constants (exported so renderer can share them)
-export const SETTINGS_ROW_H = 55;
-export const SETTINGS_CONTENT_Y = TAB_BAR_H + 10;
+const SETTINGS_ROW_H = 55;
+const SETTINGS_CONTENT_Y = TAB_BAR_H + 10;
 
 // ─── State factory ───────────────────────────────────────────────────────────
 
