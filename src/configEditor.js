@@ -7,11 +7,12 @@ import {
   getCharacterDefaults, getUpgradeDefaults,
   setOverride, resetAllOverrides, exportJSON, importJSON, reloadCache,
 } from './gameConfig.js';
+import { SETTINGS_DEFS, loadSettings, saveSettings, resetSettings, getDefaults, applyUserSettings } from './settings.js';
 
-export const TABS = ['global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
+export const TABS = ['settings', 'global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
 export const TAB_LABELS = {
-  global: 'Global', enemies: 'Enemies', weapons: 'Weapons',
-  passives: 'Skills', characters: 'Chars', upgrades: 'Upgrades',
+  settings: '設定', global: '全域', enemies: '敵人', weapons: '武器',
+  passives: '技能', characters: '角色', upgrades: '升級',
 };
 
 const ROW_H = 38;
@@ -19,15 +20,20 @@ const TAB_BAR_H = 42;
 const BOTTOM_H = 50;
 const LABEL_COL = 0.55; // fraction of width for label / value split
 
+// Settings tab layout constants (exported so renderer can share them)
+export const SETTINGS_ROW_H = 55;
+export const SETTINGS_CONTENT_Y = TAB_BAR_H + 10;
+
 // ─── State factory ───────────────────────────────────────────────────────────
 
 export function createConfigEditorState() {
   const state = {
-    activeTab: 'global',
+    activeTab: 'settings',
     scrollY: 0,
     fields: [],
     _inputEl: null,
     _inputFieldIdx: -1,
+    settingsValues: loadSettings() || getDefaults(),
   };
   buildFields(state);
   return state;
@@ -192,12 +198,57 @@ function buildUpgradeFields() {
 export function buildFields(state) {
   const ENEMY_KEYS = ['radius', 'hp', 'speed', 'damage', 'exp', 'unlockTime', 'weight'];
   switch (state.activeTab) {
-    case 'global':     state.fields = buildGlobalFields(); break;
-    case 'enemies':    state.fields = buildEntityFields('enemies', getEnemyTypes(), getEnemyDefaults(), ENEMY_KEYS); break;
-    case 'weapons':    state.fields = buildWeaponFields(); break;
-    case 'passives':   state.fields = buildPassiveFields(); break;
-    case 'characters': state.fields = buildCharacterFields(); break;
-    case 'upgrades':   state.fields = buildUpgradeFields(); break;
+    case 'settings':    state.fields = []; break; // rendered as sliders by renderer
+    case 'global':      state.fields = buildGlobalFields(); break;
+    case 'enemies':     state.fields = buildEntityFields('enemies', getEnemyTypes(), getEnemyDefaults(), ENEMY_KEYS); break;
+    case 'weapons':     state.fields = buildWeaponFields(); break;
+    case 'passives':    state.fields = buildPassiveFields(); break;
+    case 'characters':  state.fields = buildCharacterFields(); break;
+    case 'upgrades':    state.fields = buildUpgradeFields(); break;
+  }
+}
+
+// ─── Settings slider helpers ──────────────────────────────────────────────────
+
+function _sliderW(canvasWidth) {
+  return Math.min(260, canvasWidth * 0.65);
+}
+
+function _applySliderInput(state, x, canvasWidth, def) {
+  const sw = _sliderW(canvasWidth);
+  const sx = canvasWidth / 2 - sw / 2;
+  const ratio = Math.max(0, Math.min(1, (x - sx) / sw));
+  const raw = def.min + ratio * (def.max - def.min);
+  const snapped = Math.round(raw / def.step) * def.step;
+  state.settingsValues[def.key] = Math.min(def.max, Math.max(def.min, parseFloat(snapped.toFixed(4))));
+  saveSettings(state.settingsValues);
+  applyUserSettings();
+}
+
+function _handleSettingsSliderClick(state, x, y, canvas) {
+  const W = canvas.width;
+  const sw = _sliderW(W);
+  const sx = W / 2 - sw / 2;
+  for (let i = 0; i < SETTINGS_DEFS.length; i++) {
+    const sliderY = SETTINGS_CONTENT_Y + i * SETTINGS_ROW_H + 30 - state.scrollY;
+    if (y >= sliderY - 12 && y <= sliderY + 12 && x >= sx && x <= sx + sw) {
+      _applySliderInput(state, x, W, SETTINGS_DEFS[i]);
+      return;
+    }
+  }
+}
+
+export function handleDrag(state, x, y, canvas) {
+  if (state.activeTab !== 'settings') return;
+  const W = canvas.width;
+  const sw = _sliderW(W);
+  const sx = W / 2 - sw / 2;
+  for (let i = 0; i < SETTINGS_DEFS.length; i++) {
+    const sliderY = SETTINGS_CONTENT_Y + i * SETTINGS_ROW_H + 30 - state.scrollY;
+    if (y >= sliderY - 18 && y <= sliderY + 18 && x >= sx - 10 && x <= sx + sw + 10) {
+      _applySliderInput(state, x, W, SETTINGS_DEFS[i]);
+      return;
+    }
   }
 }
 
@@ -222,11 +273,12 @@ export function handleClick(state, x, y, canvas, onBack) {
 
   // Bottom buttons
   if (y > H - BOTTOM_H) {
-    const btnW = 120;
+    const isSettings = state.activeTab === 'settings';
+    const totalBtns = isSettings ? 2 : 4;
+    const btnW = isSettings ? 140 : 120;
     const gap = 10;
-    const totalBtns = 4;
-    const totalW = totalBtns * btnW + (totalBtns - 1) * gap;
-    const startX = (W - totalW) / 2;
+    const totalBW = totalBtns * btnW + (totalBtns - 1) * gap;
+    const startX = (W - totalBW) / 2;
     const btnY = H - BOTTOM_H + 8;
     const btnH = 34;
     for (let i = 0; i < totalBtns; i++) {
@@ -236,6 +288,12 @@ export function handleClick(state, x, y, canvas, onBack) {
         return;
       }
     }
+    return;
+  }
+
+  // Settings tab: slider tap
+  if (state.activeTab === 'settings') {
+    _handleSettingsSliderClick(state, x, y, canvas);
     return;
   }
 
@@ -303,11 +361,24 @@ export function handleClick(state, x, y, canvas, onBack) {
 }
 
 function _handleButtonClick(state, btnIdx, canvas, onBack) {
-  switch (btnIdx) {
-    case 0: _doExport(); break;
-    case 1: _doImport(state, canvas); break;
-    case 2: resetAllOverrides(); buildFields(state); break;
-    case 3: _removeInput(state); if (onBack) onBack(); break;
+  if (state.activeTab === 'settings') {
+    // 2 buttons: [重設預設值, ← 返回]
+    if (btnIdx === 0) {
+      resetSettings();
+      state.settingsValues = getDefaults();
+      applyUserSettings();
+    } else if (btnIdx === 1) {
+      _removeInput(state);
+      if (onBack) onBack();
+    }
+  } else {
+    // 4 buttons: [匯出 JSON, 匯入 JSON, 重設預設值, ← 返回]
+    switch (btnIdx) {
+      case 0: _doExport(); break;
+      case 1: _doImport(state, canvas); break;
+      case 2: resetAllOverrides(); buildFields(state); break;
+      case 3: _removeInput(state); if (onBack) onBack(); break;
+    }
   }
 }
 
@@ -356,10 +427,17 @@ function _removeInput(state) {
 }
 
 export function handleScroll(state, delta, canvas) {
-  const contentRows = state.fields.length;
-  const visibleRows = Math.floor((canvas.height - TAB_BAR_H - BOTTOM_H) / ROW_H);
-  const maxScroll = Math.max(0, (contentRows - visibleRows) * ROW_H);
-  state.scrollY = Math.max(0, Math.min(maxScroll, state.scrollY + delta));
+  if (state.activeTab === 'settings') {
+    const contentH = SETTINGS_DEFS.length * SETTINGS_ROW_H + 20;
+    const visibleH = canvas.height - TAB_BAR_H - BOTTOM_H;
+    const maxScroll = Math.max(0, contentH - visibleH);
+    state.scrollY = Math.max(0, Math.min(maxScroll, state.scrollY + delta));
+  } else {
+    const contentRows = state.fields.length;
+    const visibleRows = Math.floor((canvas.height - TAB_BAR_H - BOTTOM_H) / ROW_H);
+    const maxScroll = Math.max(0, (contentRows - visibleRows) * ROW_H);
+    state.scrollY = Math.max(0, Math.min(maxScroll, state.scrollY + delta));
+  }
 }
 
 export function cleanup(state) {
