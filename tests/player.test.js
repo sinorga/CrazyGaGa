@@ -35,31 +35,34 @@ describe('Player', () => {
   });
 
   describe('movement', () => {
+    const CW = 2000, CH = 2000; // large canvas so clamping doesn't affect small moves
+
     it('moves in direction at speed * dt', () => {
-      player.move({ x: 1, y: 0 }, 1.0);
+      player.move({ x: 1, y: 0 }, 1.0, CW, CH);
       expect(player.x).toBeCloseTo(500 + CONFIG.player.speed, 1);
       expect(player.y).toBe(500);
     });
 
     it('moves diagonally normalized', () => {
-      player.move({ x: 0.707, y: 0.707 }, 1.0);
+      player.move({ x: 0.707, y: 0.707 }, 1.0, CW, CH);
       const expected = CONFIG.player.speed * 0.707;
       expect(player.x).toBeCloseTo(500 + expected, 0);
       expect(player.y).toBeCloseTo(500 + expected, 0);
     });
 
-    it('clamps to map boundaries', () => {
-      player.move({ x: -1, y: 0 }, 100); // move far left
-      expect(player.x).toBeGreaterThanOrEqual(player.radius);
+    it('clamps to room wall boundaries', () => {
+      const wall = CONFIG.room.wallThickness;
+      player.move({ x: -1, y: 0 }, 100, 800, 600); // move far left
+      expect(player.x).toBeGreaterThanOrEqual(wall + player.radius);
 
       player.x = 500;
-      player.move({ x: 1, y: 0 }, 100); // move far right
-      expect(player.x).toBeLessThanOrEqual(CONFIG.map.width - player.radius);
+      player.move({ x: 1, y: 0 }, 100, 800, 600); // move far right
+      expect(player.x).toBeLessThanOrEqual(800 - wall - player.radius);
     });
 
     it('uses modified speed from passives', () => {
       player.applyPassive('speed', 0.5, 'percent');
-      player.move({ x: 1, y: 0 }, 1.0);
+      player.move({ x: 1, y: 0 }, 1.0, CW, CH);
       expect(player.x).toBeCloseTo(500 + CONFIG.player.speed * 1.5, 1);
     });
   });

@@ -18,12 +18,131 @@
 //   valueType   - 'flat' (add) | 'percent' (multiply)
 
 export const SKILL_DEFINITIONS = [
-  // --- WEAPON SKILLS ---
+  // --- ARCHERO WEAPON MODIFIER SKILLS (pool: 'archero') ---
+  {
+    id: 'skill_diagonal',
+    name: '斜角射擊',
+    description: '每次射擊額外發射2支斜向箭矢（±45°）',
+    category: 'weapon_modifier',
+    pool: 'archero',
+    icon: '↗️',
+    maxLevel: 1,
+  },
+  {
+    id: 'skill_side_arrow',
+    name: '側翼箭矢',
+    description: '向左右各發射一支垂直箭矢',
+    category: 'weapon_modifier',
+    pool: 'archero',
+    icon: '↔️',
+    maxLevel: 1,
+  },
+  {
+    id: 'skill_back_arrow',
+    name: '背後箭矢',
+    description: '向反方向發射一支箭矢',
+    category: 'weapon_modifier',
+    pool: 'archero',
+    icon: '↩️',
+    maxLevel: 1,
+  },
+  {
+    id: 'skill_multishot',
+    name: '多重射擊',
+    description: '扇形發射3支箭矢（30°展開）',
+    category: 'weapon_modifier',
+    pool: 'archero',
+    icon: '🏹',
+    maxLevel: 1,
+  },
+  {
+    id: 'skill_bounce',
+    name: '彈射箭矢',
+    description: '箭矢可反彈牆壁2次',
+    category: 'weapon_modifier',
+    pool: 'archero',
+    icon: '🔄',
+    maxLevel: 1,
+  },
+  {
+    id: 'skill_ricochet',
+    name: '追蹤彈射',
+    description: '箭矢碰牆後轉向最近敵人',
+    category: 'weapon_modifier',
+    pool: 'archero',
+    icon: '🎯',
+    maxLevel: 1,
+  },
+
+  // --- ARCHERO PASSIVE SKILLS (pool: 'archero') ---
+  {
+    id: 'skill_freeze',
+    name: '冰凍術',
+    description: '15% 機率擊中時冰凍敵人1.2秒',
+    category: 'passive',
+    pool: 'archero',
+    icon: '❄️',
+    maxLevel: 1,
+    stat: 'freezeChance',
+    value: 0.15,
+    valueType: 'flat',
+  },
+  {
+    id: 'skill_poison',
+    name: '毒霧',
+    description: '擊中時施加每秒3傷害毒效果（持續3秒）',
+    category: 'passive',
+    pool: 'archero',
+    icon: '☠️',
+    maxLevel: 1,
+    stat: 'poisonDps',
+    value: 3,
+    valueType: 'flat',
+  },
+  {
+    id: 'skill_heal_on_kill',
+    name: '嗜血',
+    description: '每次擊殺回復2 HP',
+    category: 'passive',
+    pool: 'archero',
+    icon: '💉',
+    maxLevel: 3,
+    stat: 'healOnKill',
+    value: 2,
+    valueType: 'flat',
+  },
+  {
+    id: 'skill_thorns',
+    name: '荊棘護甲',
+    description: '反彈接觸傷害的15%回給攻擊者',
+    category: 'passive',
+    pool: 'archero',
+    icon: '🌵',
+    maxLevel: 1,
+    stat: 'thorns',
+    value: 0.15,
+    valueType: 'flat',
+  },
+  {
+    id: 'skill_vampire',
+    name: '吸血',
+    description: '造成傷害的8%轉化為生命值',
+    category: 'passive',
+    pool: 'archero',
+    icon: '🧛',
+    maxLevel: 3,
+    stat: 'vampire',
+    value: 0.08,
+    valueType: 'flat',
+  },
+
+  // --- WEAPON SKILLS (pool: 'levelup') ---
   {
     id: 'skill_arrow',
     name: '弓箭精通',
     description: '獲得/強化弓箭，增加傷害與穿透',
     category: 'weapon',
+    pool: 'levelup',
     icon: '🏹',
     maxLevel: 5,
     weaponId: 'arrow',
@@ -33,6 +152,7 @@ export const SKILL_DEFINITIONS = [
     name: '魔法球',
     description: '獲得/強化環繞魔法球',
     category: 'weapon',
+    pool: 'levelup',
     icon: '🔮',
     maxLevel: 5,
     weaponId: 'magic_orb',
@@ -42,6 +162,7 @@ export const SKILL_DEFINITIONS = [
     name: '閃電之力',
     description: '獲得/強化閃電鏈攻擊',
     category: 'weapon',
+    pool: 'levelup',
     icon: '⚡',
     maxLevel: 5,
     weaponId: 'lightning',
@@ -51,6 +172,7 @@ export const SKILL_DEFINITIONS = [
     name: '烈焰領域',
     description: '獲得/強化灼燒地面區域',
     category: 'weapon',
+    pool: 'levelup',
     icon: '🔥',
     maxLevel: 5,
     weaponId: 'fire_circle',
@@ -60,6 +182,7 @@ export const SKILL_DEFINITIONS = [
     name: '迴旋鏢',
     description: '獲得/強化迴旋鏢攻擊',
     category: 'weapon',
+    pool: 'levelup',
     icon: '🪃',
     maxLevel: 5,
     weaponId: 'boomerang',
@@ -69,17 +192,19 @@ export const SKILL_DEFINITIONS = [
     name: '聖劍天降',
     description: '獲得/強化聖劍雨攻擊',
     category: 'weapon',
+    pool: 'levelup',
     icon: '⚔️',
     maxLevel: 5,
     weaponId: 'holy_sword',
   },
 
-  // --- PASSIVE SKILLS ---
+  // --- PASSIVE SKILLS (pool: 'levelup') ---
   {
     id: 'passive_max_hp',
     name: '生命強化',
     description: '最大生命值 +20',
     category: 'passive',
+    pool: 'levelup',
     icon: '❤️',
     maxLevel: 5,
     stat: 'maxHp',
@@ -91,6 +216,7 @@ export const SKILL_DEFINITIONS = [
     name: '疾風步',
     description: '移動速度 +10%',
     category: 'passive',
+    pool: 'levelup',
     icon: '💨',
     maxLevel: 5,
     stat: 'speed',
@@ -102,6 +228,7 @@ export const SKILL_DEFINITIONS = [
     name: '力量提升',
     description: '全傷害 +12%',
     category: 'passive',
+    pool: 'levelup',
     icon: '💪',
     maxLevel: 5,
     stat: 'damage',
@@ -113,6 +240,7 @@ export const SKILL_DEFINITIONS = [
     name: '快速施法',
     description: '攻擊冷卻 -8%',
     category: 'passive',
+    pool: 'levelup',
     icon: '⏱️',
     maxLevel: 5,
     stat: 'cooldown',
@@ -124,6 +252,7 @@ export const SKILL_DEFINITIONS = [
     name: '鐵壁',
     description: '受到傷害 -3',
     category: 'passive',
+    pool: 'levelup',
     icon: '🛡️',
     maxLevel: 5,
     stat: 'armor',
@@ -135,6 +264,7 @@ export const SKILL_DEFINITIONS = [
     name: '生命恢復',
     description: '每秒恢復 1 HP',
     category: 'passive',
+    pool: 'levelup',
     icon: '💚',
     maxLevel: 3,
     stat: 'regen',
@@ -146,6 +276,7 @@ export const SKILL_DEFINITIONS = [
     name: '磁鐵',
     description: '拾取範圍 +30%',
     category: 'passive',
+    pool: 'levelup',
     icon: '🧲',
     maxLevel: 3,
     stat: 'pickupRange',
@@ -157,6 +288,7 @@ export const SKILL_DEFINITIONS = [
     name: '經驗加成',
     description: '經驗獲取 +15%',
     category: 'passive',
+    pool: 'levelup',
     icon: '📖',
     maxLevel: 3,
     stat: 'expBonus',
@@ -171,10 +303,13 @@ export function getSkillDefinition(id) {
 }
 
 // Helper: get random skill choices for level-up, excluding maxed skills
-export function getRandomSkillChoices(count, playerSkillLevels) {
+// pool: 'levelup' | 'archero' | undefined (all)
+export function getRandomSkillChoices(count, playerSkillLevels, pool) {
   const available = SKILL_DEFINITIONS.filter(s => {
     const currentLevel = playerSkillLevels[s.id] || 0;
-    return currentLevel < s.maxLevel;
+    if (currentLevel >= s.maxLevel) return false;
+    if (pool && s.pool !== pool) return false;
+    return true;
   });
 
   // Weighted shuffle - weapon skills player already has are more likely
@@ -187,18 +322,18 @@ export function getRandomSkillChoices(count, playerSkillLevels) {
   });
 
   const choices = [];
-  const pool = [...weighted];
+  const bucket = [...weighted];
 
-  for (let i = 0; i < count && pool.length > 0; i++) {
-    const totalWeight = pool.reduce((sum, w) => sum + w.weight, 0);
+  for (let i = 0; i < count && bucket.length > 0; i++) {
+    const totalWeight = bucket.reduce((sum, w) => sum + w.weight, 0);
     let roll = Math.random() * totalWeight;
     let idx = 0;
-    for (idx = 0; idx < pool.length; idx++) {
-      roll -= pool[idx].weight;
+    for (idx = 0; idx < bucket.length; idx++) {
+      roll -= bucket[idx].weight;
       if (roll <= 0) break;
     }
-    choices.push(pool[idx].skill);
-    pool.splice(idx, 1);
+    choices.push(bucket[idx].skill);
+    bucket.splice(idx, 1);
   }
 
   return choices;

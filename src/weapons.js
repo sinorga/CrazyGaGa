@@ -75,21 +75,61 @@ export class WeaponManager {
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist === 0) return;
 
-    const count = weapon.config.count || 1;
-    const spread = weapon.config.spread || 0;
     const baseAngle = Math.atan2(dy, dx);
+    const sl = player.skillLevels || {};
 
-    for (let i = 0; i < count; i++) {
-      const angle = baseAngle + (i - (count - 1) / 2) * spread;
-      const dirX = Math.cos(angle);
-      const dirY = Math.sin(angle);
+    // Bounce/ricochet options
+    const bounces = (sl['skill_bounce'] || 0) > 0 ? 2 : 0;
+    const ricochet = (sl['skill_ricochet'] || 0) > 0;
 
-      projectiles.push(new Projectile(player.x, player.y, dirX, dirY, weapon.config.speed, {
-        damage: weapon.damage * player.damageMultiplier,
-        radius: weapon.config.radius,
-        pierce: weapon.config.pierce + Math.floor((weapon.level - 1) / 2), // +1 pierce every 2 levels
-        color: weapon.color,
-      }));
+    const opts = {
+      damage: weapon.damage * player.damageMultiplier,
+      radius: weapon.config.radius,
+      pierce: weapon.config.pierce + Math.floor((weapon.level - 1) / 2),
+      color: weapon.color,
+      bounces,
+      ricochet,
+    };
+
+    // Multishot: 3-arrow fan replaces single (only for primary)
+    const useMultishot = (sl['skill_multishot'] || 0) > 0;
+
+    // Primary shot(s)
+    if (useMultishot) {
+      const fanAngles = [-Math.PI / 12, 0, Math.PI / 12]; // 15° either side in 30° fan
+      for (const offset of fanAngles) {
+        const a = baseAngle + offset;
+        projectiles.push(new Projectile(player.x, player.y, Math.cos(a), Math.sin(a), weapon.config.speed, opts));
+      }
+    } else {
+      const count = weapon.config.count || 1;
+      const spread = weapon.config.spread || 0;
+      for (let i = 0; i < count; i++) {
+        const a = baseAngle + (i - (count - 1) / 2) * spread;
+        projectiles.push(new Projectile(player.x, player.y, Math.cos(a), Math.sin(a), weapon.config.speed, opts));
+      }
+    }
+
+    // Diagonal arrows: 2 extra at ±45°
+    if ((sl['skill_diagonal'] || 0) > 0) {
+      for (const offset of [-Math.PI / 4, Math.PI / 4]) {
+        const a = baseAngle + offset;
+        projectiles.push(new Projectile(player.x, player.y, Math.cos(a), Math.sin(a), weapon.config.speed, opts));
+      }
+    }
+
+    // Side arrows: 1 left + 1 right (perpendicular)
+    if ((sl['skill_side_arrow'] || 0) > 0) {
+      for (const offset of [-Math.PI / 2, Math.PI / 2]) {
+        const a = baseAngle + offset;
+        projectiles.push(new Projectile(player.x, player.y, Math.cos(a), Math.sin(a), weapon.config.speed, opts));
+      }
+    }
+
+    // Back arrow: 1 in exact opposite direction
+    if ((sl['skill_back_arrow'] || 0) > 0) {
+      const a = baseAngle + Math.PI;
+      projectiles.push(new Projectile(player.x, player.y, Math.cos(a), Math.sin(a), weapon.config.speed, opts));
     }
   }
 

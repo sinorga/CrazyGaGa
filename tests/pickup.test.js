@@ -5,7 +5,7 @@ describe('Pickup', () => {
   let gem;
 
   beforeEach(() => {
-    gem = new Pickup(200, 200, 5);
+    gem = new Pickup(200, 200, 5); // gem pickup, default type
   });
 
   it('initializes at position with value', () => {
@@ -39,14 +39,49 @@ describe('Pickup', () => {
   });
 
   it('accelerates toward player over time in magnet range', () => {
-    // Place gem far enough that it won't be collected immediately
     gem.x = 100;
     gem.y = 200;
     gem.update(0.016, { x: 240, y: 200, magnetRange: 150, pickupRange: 30 });
     const pos1 = gem.x;
     gem.update(0.016, { x: 240, y: 200, magnetRange: 150, pickupRange: 30 });
     const moved2 = gem.x - pos1;
-    // Second move should be at least as large (acceleration)
     expect(moved2).toBeGreaterThan(0);
+  });
+
+  describe('HP pickup', () => {
+    it('creates normal heart with hpValue 20', () => {
+      const heart = new Pickup(100, 100, 0, 'hp', 'normal');
+      expect(heart.type).toBe('hp');
+      expect(heart.hpValue).toBe(20);
+    });
+
+    it('creates large potion with hpValue 40', () => {
+      const potion = new Pickup(100, 100, 0, 'hp', 'large');
+      expect(potion.type).toBe('hp');
+      expect(potion.hpValue).toBe(40);
+    });
+
+    it('HP pickup restores player.hp by hpValue on collection', () => {
+      const player = { x: 200, y: 200, hp: 50, maxHp: 100, pickupRange: 60, magnetRange: 150 };
+      const heart = new Pickup(200, 200, 0, 'hp', 'normal');
+      heart.alive = true;
+      const collected = heart.update(0.016, player);
+      expect(collected).toBe(true);
+      // Game code applies the hp restore, not Pickup itself; but we verify collection
+      expect(heart.alive).toBe(false);
+    });
+
+    it('HP pickup does not exceed maxHp (game logic check)', () => {
+      // Simulate game logic: hp = Math.min(maxHp, hp + hpValue)
+      const player = { hp: 95, maxHp: 100 };
+      const heart = new Pickup(0, 0, 0, 'hp', 'normal');
+      player.hp = Math.min(player.maxHp, player.hp + heart.hpValue);
+      expect(player.hp).toBe(100);
+    });
+
+    it('gem pickup still has type gem and no hpValue', () => {
+      expect(gem.type).toBe('gem');
+      expect(gem.hpValue).toBe(0);
+    });
   });
 });

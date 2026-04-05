@@ -158,10 +158,13 @@ export function getCharacterDef(id) { return _characters.find(c => c.id === id) 
 export function getUpgradeDef(id) { return _upgrades.find(u => u.id === id) || null; }
 
 // Random skill choices (mirrors data/skills.js getRandomSkillChoices)
-export function getRandomSkillChoices(count, playerSkillLevels) {
+// pool: 'levelup' | 'archero' | undefined (all)
+export function getRandomSkillChoices(count, playerSkillLevels, pool) {
   const available = _skills.filter(s => {
     const cur = playerSkillLevels[s.id] || 0;
-    return cur < s.maxLevel;
+    if (cur >= s.maxLevel) return false;
+    if (pool && s.pool !== pool) return false;
+    return true;
   });
   const weighted = available.map(s => {
     let w = 1;
@@ -169,17 +172,17 @@ export function getRandomSkillChoices(count, playerSkillLevels) {
     return { skill: s, w };
   });
   const choices = [];
-  const pool = [...weighted];
-  for (let i = 0; i < count && pool.length > 0; i++) {
-    const total = pool.reduce((s, x) => s + x.w, 0);
+  const bucket = [...weighted];
+  for (let i = 0; i < count && bucket.length > 0; i++) {
+    const total = bucket.reduce((s, x) => s + x.w, 0);
     let roll = Math.random() * total;
     let idx = 0;
-    for (idx = 0; idx < pool.length; idx++) {
-      roll -= pool[idx].w;
+    for (idx = 0; idx < bucket.length; idx++) {
+      roll -= bucket[idx].w;
       if (roll <= 0) break;
     }
-    choices.push(pool[idx].skill);
-    pool.splice(idx, 1);
+    choices.push(bucket[idx].skill);
+    bucket.splice(idx, 1);
   }
   return choices;
 }

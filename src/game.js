@@ -3,10 +3,12 @@ import { getConfig, getRandomSkillChoices, getSkillDef as getSkillDefinition, ge
 import { createConfigEditorState, handleClick as ceHandleClick, handleScroll as ceHandleScroll, handleDrag as ceHandleDrag, buildFields as ceBuildFields, cleanup as ceCleanup } from './configEditor.js';
 import { Input } from './input.js';
 import { Player } from './player.js';
-import { Enemy } from './enemy.js';
-import { WaveSpawner } from './spawner.js';
+import { Enemy, isBlockedByShielder } from './enemy.js';
+import { RoomManager } from './roomManager.js';
 import { WeaponManager } from './weapons.js';
 import { Pickup } from './pickup.js';
+import { Chest } from './chest.js';
+import { Barrel } from './barrel.js';
 import { SpatialHash, circlesOverlap, distance } from './collision.js';
 import { ParticleSystem } from './particles.js';
 import { updateBossAI } from './boss.js';
@@ -20,33 +22,34 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'shop' | 'characters' | 'config_editor' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory'
+    this.state = 'menu'; // 'menu' | 'shop' | 'characters' | 'config_editor' | 'playing' | 'paused' | 'levelup' | 'roomclear' | 'chapterclear' | 'gameover'
     this.elapsed = 0;
 
     // Entities
-    this.player = new Player(CONFIG.map.width / 2, CONFIG.map.height / 2);
+    this.player = new Player(canvas.width / 2, canvas.height * 0.8);
     this.enemies = [];
     this.projectiles = [];
     this.enemyProjectiles = [];
     this.pickups = [];
+    this.chests = [];
+    this.barrels = [];
 
     // Systems
-    this.spawner = new WaveSpawner();
+    this.roomManager = new RoomManager();
     this.weaponManager = new WeaponManager();
     this.spatialHash = new SpatialHash();
     this.particles = new ParticleSystem();
 
-    // Camera
+    // Camera: always fixed at origin (room fills canvas)
     this.camera = { x: 0, y: 0 };
 
     // UI state
     this.skillChoices = [];
     this.autoAttackDelay = 0;
+    this._prevState = null; // state before roomclear (to handle advance)
 
     // Boss state
     this.currentBoss = null;
-    this.bossPhase = 0;
-    this.nextBossKills = CONFIG.waves.bossKillThreshold;
 
     // Damage events for renderer
     this.onPlayerDamage = null; // callback: (isBoss) => {}
@@ -54,6 +57,12 @@ export class Game {
 
     // Boss entrance effect
     this.bossEntrance = null; // { timer, bossName }
+
+    // Chapter clear data
+    this.chapterClearNum = 0;
+
+    // Player silence (boss_lich_king ability)
+    this.silenceTimer = 0;
 
     // Meta progression
     this.meta = loadMeta();
@@ -67,18 +76,26 @@ export class Game {
     this._startingWeapon = 'arrow';
   }
 
+  // Used by RoomManager to look up enemy type definitions
+  _getEnemyType(id) {
+    return getEnemyType(id);
+  }
+
   startGame() {
     reloadCache(); // apply any config overrides before run starts
     this.state = 'playing';
     this.elapsed = 0;
     this.runGold = 0;
     this.meta = loadMeta();
-    this.player.reset(CONFIG.map.width / 2, CONFIG.map.height / 2);
+    this.player.reset(this.canvas.width / 2, this.canvas.height * getConfig().room.playerStartYFraction);
     this.enemies = [];
     this.projectiles = [];
     this.enemyProjectiles = [];
     this.pickups = [];
-    this.spawner.reset();
+    this.chests = [];
+    this.barrels = [];
+    this.silenceTimer = 0;
+    this.roomManager.reset();
     this.weaponManager.reset();
 
     // Apply character stats
@@ -121,11 +138,15 @@ export class Game {
       }
     }
     this.currentBoss = null;
-    this.bossPhase = 0;
-    this.nextBossKills = CONFIG.waves.bossKillThreshold;
     this.particles = new ParticleSystem();
     this.skillChoices = [];
     this.autoAttackDelay = 0;
+    this._prevState = null;
+
+    // Enter first room
+    const initialEnemies = this.roomManager.enterRoom(this);
+    this.enemies.push(...initialEnemies);
+    this._spawnRoomObjects();
   }
 
   restart() {
@@ -163,18 +184,41 @@ export class Game {
     }
 
     if (evolutionChoices.length > 0) {
-      // Offer evolutions as priority choices
-      this.skillChoices = evolutionChoices.slice(0, CONFIG.leveling.choiceCount);
+      this.skillChoices = evolutionChoices.slice(0, getConfig().leveling.choiceCount);
     } else {
+      // Level-up pool: passive stat boosts only
       this.skillChoices = getRandomSkillChoices(
-        CONFIG.leveling.choiceCount,
-        this.player.skillLevels
+        getConfig().leveling.choiceCount,
+        this.player.skillLevels,
+        'levelup'
       );
     }
   }
 
+  triggerRoomClear() {
+    if (this.state !== 'playing') return;
+    this._prevState = 'roomclear';
+    this.state = 'roomclear';
+    this.skillChoices = getRandomSkillChoices(
+      getConfig().leveling.choiceCount,
+      this.player.skillLevels,
+      'archero'
+    );
+  }
+
+  triggerChapterClear() {
+    if (this.state !== 'playing') return;
+    this.chapterClearNum = this.roomManager.currentChapter.id;
+    this.runGold *= 1; // could double gold on chapter clear in future
+    this.state = 'chapterclear';
+    this.meta.gold += Math.floor(this.runGold);
+    saveMeta(this.meta);
+  }
+
   selectSkill(index) {
-    if (this.state !== 'levelup') return;
+    const isRoomClear = this.state === 'roomclear';
+    const isLevelUp = this.state === 'levelup';
+    if (!isLevelUp && !isRoomClear) return;
     const skill = this.skillChoices[index];
     if (!skill) return;
 
@@ -182,22 +226,27 @@ export class Game {
     this.player.skillLevels[skill.id] = (this.player.skillLevels[skill.id] || 0) + 1;
 
     if (skill.category === 'evolution') {
-      // Replace base weapon with evolved form
       this.weaponManager.weapons = this.weaponManager.weapons.filter(w => w.id !== skill.baseWeaponId);
       this.weaponManager.addWeapon(skill.evolvedWeaponId);
     } else if (skill.category === 'weapon') {
       this.weaponManager.addWeapon(skill.weaponId);
-    } else if (skill.category === 'passive') {
-      this.player.applyPassive(skill.stat, skill.value, skill.valueType);
+    } else if (skill.category === 'passive' || skill.category === 'weapon_modifier') {
+      if (skill.stat) {
+        this.player.applyPassive(skill.stat, skill.value, skill.valueType);
+      }
     }
 
-    // Perform level up
-    this.player.levelUp();
-    this.state = 'playing';
-
-    // Check if player can level up again
-    if (this.player.shouldLevelUp()) {
-      this.triggerLevelUp();
+    if (isLevelUp) {
+      this.player.levelUp();
+      this.state = 'playing';
+      if (this.player.shouldLevelUp()) {
+        this.triggerLevelUp();
+      }
+    } else {
+      // Room clear: advance to next room after ability selection
+      this.state = 'playing';
+      this.roomManager.advanceRoom(this);
+      this._spawnRoomObjects();
     }
   }
 
@@ -207,11 +256,25 @@ export class Game {
     saveMeta(this.meta);
   }
 
-  triggerVictory() {
-    this.state = 'victory';
-    this.runGold *= 2; // double gold reward for winning
-    this.meta.gold += Math.floor(this.runGold);
-    saveMeta(this.meta);
+  // Helper: spawn chests and barrels for the current room
+  _spawnRoomObjects() {
+    this.chests = [];
+    this.barrels = [];
+    this._doorBurstEmitted = false;
+    const template = this.roomManager.currentTemplate;
+    if (!template) return;
+
+    // Treasure room: spawn a chest at center
+    if (template.type === 'treasure') {
+      this.chests.push(new Chest(this.canvas.width / 2, this.canvas.height / 2));
+    }
+
+    // Barrels from obstacle positions
+    for (const obs of (template.obstacles || [])) {
+      const x = obs.x * this.canvas.width;
+      const y = obs.y * this.canvas.height;
+      this.barrels.push(new Barrel(x, y));
+    }
   }
 
   // Called by game loop each fixed timestep
@@ -221,18 +284,22 @@ export class Game {
     this.elapsed += dt;
     this.input.update();
 
+    const cfg = getConfig();
     const isMoving = this.input.isMoving;
-    const fireWhileMoving = CONFIG.combat.fireWhileMoving;
+    const fireWhileMoving = cfg.combat.fireWhileMoving;
 
     // Player movement
     if (isMoving) {
-      this.player.move(this.input.direction, dt);
-      if (!fireWhileMoving) this.autoAttackDelay = CONFIG.combat.autoAttackDelay;
+      this.player.move(this.input.direction, dt, this.canvas.width, this.canvas.height);
+      if (!fireWhileMoving) this.autoAttackDelay = cfg.combat.autoAttackDelay;
     } else {
       this.autoAttackDelay = Math.max(0, this.autoAttackDelay - dt);
     }
 
     this.player.update(dt);
+
+    // Silence timer (boss_lich_king ability)
+    if (this.silenceTimer > 0) this.silenceTimer -= dt;
 
     // Boss entrance timer
     if (this.bossEntrance) {
@@ -242,28 +309,31 @@ export class Game {
       }
     }
 
-    // Boss spawn on kill threshold
-    if (!this.currentBoss && this.player.kills >= this.nextBossKills) {
-      this.bossPhase++;
-      const bossDef = getBossForPhase(this.bossPhase);
-      if (bossDef) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = CONFIG.waves.spawnDistanceMin;
-        const bx = this.player.x + Math.cos(angle) * dist;
-        const by = this.player.y + Math.sin(angle) * dist;
-        this.currentBoss = new Enemy(bx, by, bossDef);
-        this.enemies.push(this.currentBoss);
-        this.bossEntrance = { timer: 1.2, bossName: bossDef.name };
+    // Room manager update: spawns new wave enemies
+    const newEnemies = this.roomManager.update(dt, this.enemies, this.player, this);
+    if (newEnemies.length > 0) {
+      this.enemies.push(...newEnemies);
+      // Track boss
+      for (const e of newEnemies) {
+        if (e.type === 'boss') {
+          this.currentBoss = e;
+          this.bossEntrance = { timer: 1.2, bossName: e.typeDef.name };
+        }
       }
-      this.nextBossKills += CONFIG.waves.bossKillThreshold;
     }
 
-    // Wave spawning (reduced during boss fight, not paused)
-    const newEnemies = this.spawner.update(dt, this.player, this.enemies.length);
-    this.enemies.push(...newEnemies);
+    // Player-door overlap check (room cleared)
+    if (this.roomManager.doorOpen && this.roomManager.doorAnim >= 1) {
+      const door = this.roomManager.getDoorRect(this.canvas.width);
+      if (this.player.x >= door.x && this.player.x <= door.x + door.w &&
+          this.player.y >= door.y && this.player.y <= door.y + door.h) {
+        this.roomManager.onPlayerReachDoor(this);
+        return; // state changed, stop update
+      }
+    }
 
-    // Weapon updates
-    const canAttack = (fireWhileMoving || !isMoving) && this.autoAttackDelay <= 0;
+    // Weapon updates (silence disables shooting)
+    const canAttack = (fireWhileMoving || !isMoving) && this.autoAttackDelay <= 0 && this.silenceTimer <= 0;
     this.weaponManager.update(dt, this.player, this.enemies, this.projectiles, !canAttack);
 
     // Update enemies
@@ -271,8 +341,10 @@ export class Game {
     for (const enemy of this.enemies) {
       if (enemy.type === 'boss') {
         updateBossAI(enemy, this.player, dt, this.enemyProjectiles, spawnedMinions);
+        // Phase transition check
+        this._checkBossPhase(enemy);
       } else {
-        enemy.update(this.player, dt, this.enemyProjectiles, spawnedMinions);
+        enemy.update(this.player, dt, this.enemyProjectiles, spawnedMinions, this.enemies);
       }
     }
     if (spawnedMinions.length > 0) {
@@ -281,7 +353,7 @@ export class Game {
 
     // Update projectiles
     for (const proj of this.projectiles) {
-      proj.update(dt);
+      proj.update(dt, this.enemies);
       proj.checkBounds(this.canvas.width, this.canvas.height, this.camera);
     }
 
@@ -290,10 +362,9 @@ export class Game {
       if (proj.alive) {
         proj.x += proj.vx * dt;
         proj.y += proj.vy * dt;
-        // Bounds check
         const margin = 100;
-        if (proj.x < this.camera.x - margin || proj.x > this.camera.x + this.canvas.width + margin ||
-            proj.y < this.camera.y - margin || proj.y > this.camera.y + this.canvas.height + margin) {
+        if (proj.x < -margin || proj.x > this.canvas.width + margin ||
+            proj.y < -margin || proj.y > this.canvas.height + margin) {
           proj.alive = false;
         }
       }
@@ -303,16 +374,40 @@ export class Game {
     for (const pickup of this.pickups) {
       if (pickup.update(dt, this.player)) {
         // Collected
-        this.player.addExp(pickup.value);
-        this.particles.emit(pickup.x, pickup.y, 3, pickup.color, { speedMax: 50, lifetime: 0.3 });
-
-        // Check level up
-        if (this.player.shouldLevelUp()) {
-          this.triggerLevelUp();
-          return; // pause updates
+        if (pickup.type === 'hp') {
+          this.player.hp = Math.min(this.player.maxHp, this.player.hp + pickup.hpValue);
+          this.particles.emit(pickup.x, pickup.y, 4, '#ff6680', { speedMax: 50, lifetime: 0.3 });
+        } else {
+          this.player.addExp(pickup.value);
+          this.particles.emit(pickup.x, pickup.y, 3, pickup.color, { speedMax: 50, lifetime: 0.3 });
+          if (this.player.shouldLevelUp()) {
+            this.triggerLevelUp();
+            return;
+          }
         }
       }
     }
+
+    // Update chests
+    for (const chest of this.chests) {
+      if (!chest.open) {
+        const reward = chest.tryOpen(this.player);
+        if (reward) {
+          if (reward.type === 'hp') {
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + reward.value);
+          } else if (reward.type === 'gold') {
+            this.runGold += reward.value;
+          } else if (reward.type === 'scroll') {
+            this.triggerRoomClear(); // use archero ability pool
+            return;
+          }
+          this.particles.emit(chest.x, chest.y, 15, '#ffdd44', { speedMax: 100, lifetime: 0.5 });
+        }
+      }
+    }
+
+    // Update barrels (just alive tracking; collisions handled below)
+    // Barrels are static — no per-frame update needed
 
     // Collision detection
     this._processCollisions();
@@ -323,24 +418,43 @@ export class Game {
     // Update weapon area effects
     this._updateAreaEffects(dt);
 
-    // Update camera
-    this._updateCamera(dt);
-
     // Clean up dead entities
     this.enemies = this.enemies.filter(e => e.alive);
+    if (this.currentBoss && !this.currentBoss.alive) this.currentBoss = null;
     this.projectiles = this.projectiles.filter(p => p.alive);
     this.enemyProjectiles = this.enemyProjectiles.filter(p => p.alive);
     this.pickups = this.pickups.filter(p => p.alive);
+    this.barrels = this.barrels.filter(b => b.alive);
 
-    // Check victory
-    if (this.player.kills >= CONFIG.waves.victoryKills) {
-      this.triggerVictory();
-      return;
+    // Room clear check after deaths are processed
+    this.roomManager.onEnemyDeath(this.enemies);
+
+    // Room-clear door particle burst (once)
+    if (this.roomManager.doorOpen && !this._doorBurstEmitted) {
+      this._doorBurstEmitted = true;
+      const door = this.roomManager.getDoorRect(this.canvas.width);
+      this.particles.emit(door.x + door.w / 2, door.y + door.h / 2, 20, '#ffdd44', {
+        speedMin: 50, speedMax: 150, sizeMin: 2, sizeMax: 6, lifetime: 0.8,
+      });
     }
 
     // Check player death
     if (!this.player.alive) {
       this.triggerGameOver();
+    }
+  }
+
+  _checkBossPhase(boss) {
+    if (boss._phaseTriggered) return;
+    const phaseAt = boss.typeDef.phaseAt;
+    if (!phaseAt) return;
+    if (boss.hp / boss.maxHp <= phaseAt) {
+      boss._phaseTriggered = true;
+      boss._phaseColor = boss.color;
+      boss.color = '#ff4400'; // red tint
+      boss.speed = Math.round(boss.speed * 1.3);
+      // Add extra attack if space
+      this.particles.emit(boss.x, boss.y, 20, '#ff4400', { speedMax: 150, lifetime: 0.5 });
     }
   }
 
@@ -350,7 +464,7 @@ export class Game {
     for (let i = 0; i < this.enemies.length; i++) {
       const e = this.enemies[i];
       if (e.alive) {
-        e._idx = i; // temp index for hit tracking
+        e._idx = i;
         this.spatialHash.insert(e);
       }
     }
@@ -358,15 +472,48 @@ export class Game {
     // Player projectiles vs enemies
     for (const proj of this.projectiles) {
       if (!proj.alive) continue;
+
+      // Projectile vs barrels
+      for (const barrel of this.barrels) {
+        if (!barrel.alive) continue;
+        const dx = proj.x - barrel.x;
+        const dy = proj.y - barrel.y;
+        if (dx * dx + dy * dy < (proj.radius + barrel.radius) ** 2) {
+          barrel.takeDamage(proj.damage);
+          proj.alive = false;
+          if (!barrel.alive) {
+            this.particles.emit(barrel.x, barrel.y, 12, '#ff8844', { speedMax: 120, lifetime: 0.4 });
+          }
+          break;
+        }
+      }
+      if (!proj.alive) continue;
+
       const nearby = this.spatialHash.query(proj.x, proj.y, proj.radius + 30);
       for (const enemy of nearby) {
         if (!enemy.alive || proj.hasHit(enemy._idx)) continue;
         if (circlesOverlap(proj, enemy)) {
-          enemy.takeDamage(proj.damage);
+          // Shielder: check if projectile is blocked by frontal arc
+          if (isBlockedByShielder(proj, enemy)) continue;
+
+          const dmgDealt = proj.damage;
+          enemy.takeDamage(dmgDealt);
           proj.markHit(enemy._idx);
           proj.onHit();
 
-          const dmg = Math.round(proj.damage);
+          // Archero effects on hit
+          if (this.player.freezeChance > 0 && Math.random() < this.player.freezeChance) {
+            enemy.frozen = 1.2;
+          }
+          if (this.player.poisonDps > 0) {
+            enemy.poisoned = 3;
+            enemy.poisonDps = this.player.poisonDps;
+          }
+          if (this.player.vampire > 0) {
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + dmgDealt * this.player.vampire);
+          }
+
+          const dmg = Math.round(dmgDealt);
           const dmgColor = dmg >= 50 ? '#ffdd44' : '#ffffff';
           const dmgSize = Math.min(20, 12 + Math.floor(dmg / 10));
           this.particles.emitText(enemy.x, enemy.y - enemy.radius, dmg, dmgColor, { fontSize: dmgSize });
@@ -388,7 +535,6 @@ export class Game {
           for (const enemy of nearby) {
             if (!enemy.alive) continue;
             if (circlesOverlap(orb, enemy)) {
-              // Check hit cooldown
               if (!enemy._orbHitTimers) enemy._orbHitTimers = {};
               const key = weapon.id;
               if (enemy._orbHitTimers[key] && enemy._orbHitTimers[key] > 0) continue;
@@ -408,16 +554,24 @@ export class Game {
       }
     }
 
-    // Enemies vs player
+    // Enemies vs player contact + thorns
     if (!this.player.invincible) {
       const nearPlayer = this.spatialHash.query(this.player.x, this.player.y, this.player.radius + 30);
       for (const enemy of nearPlayer) {
         if (!enemy.alive) continue;
         if (circlesOverlap(this.player, enemy)) {
-          this.player.takeDamage(enemy.damage);
-          this.particles.emitText(this.player.x, this.player.y - this.player.radius, Math.round(enemy.damage), '#ff4444', { fontSize: 16 });
+          const contactDmg = enemy.damage;
+          this.player.takeDamage(contactDmg);
+          this.particles.emitText(this.player.x, this.player.y - this.player.radius, Math.round(contactDmg), '#ff4444', { fontSize: 16 });
           this.particles.emit(this.player.x, this.player.y, 6, '#ff4444', { speedMax: 100, lifetime: 0.3 });
           if (this.onPlayerDamage) this.onPlayerDamage(enemy.type === 'boss');
+
+          // Thorns: reflect damage back
+          if (this.player.thorns > 0) {
+            const reflected = contactDmg * this.player.thorns;
+            enemy.takeDamage(reflected);
+            if (!enemy.alive) this._onEnemyDeath(enemy);
+          }
           break;
         }
       }
@@ -427,11 +581,23 @@ export class Game {
     if (!this.player.invincible) {
       for (const proj of this.enemyProjectiles) {
         if (!proj.alive) continue;
+
+        // Silence bolt: boss_lich_king
+        if (proj.isSilence) {
+          const dx = proj.x - this.player.x;
+          const dy = proj.y - this.player.y;
+          if (dx * dx + dy * dy < (proj.radius + this.player.radius) ** 2) {
+            this.silenceTimer = proj.silenceDuration || 2;
+            proj.alive = false;
+            continue;
+          }
+        }
+
         const dx = proj.x - this.player.x;
         const dy = proj.y - this.player.y;
-        const dist = dx * dx + dy * dy;
+        const dist2 = dx * dx + dy * dy;
         const minDist = proj.radius + this.player.radius;
-        if (dist < minDist * minDist) {
+        if (dist2 < minDist * minDist) {
           this.player.takeDamage(proj.damage);
           this.particles.emitText(this.player.x, this.player.y - this.player.radius, Math.round(proj.damage), '#ff4444', { fontSize: 16 });
           proj.alive = false;
@@ -441,7 +607,7 @@ export class Game {
       }
     }
 
-    // Orbs vs enemy projectiles — orbs destroy enemy bullets
+    // Orbs vs enemy projectiles
     for (const weapon of this.weaponManager.weapons) {
       if (weapon.type === 'orbit' && weapon.orbs) {
         for (const orb of weapon.orbs) {
@@ -464,7 +630,7 @@ export class Game {
     for (const enemy of this.enemies) {
       if (enemy._orbHitTimers) {
         for (const key of Object.keys(enemy._orbHitTimers)) {
-          enemy._orbHitTimers[key] -= 1 / 60; // fixed timestep
+          enemy._orbHitTimers[key] -= 1 / 60;
         }
       }
     }
@@ -472,20 +638,33 @@ export class Game {
 
   _onEnemyDeath(enemy) {
     this.player.kills++;
-    this.runGold += (CONFIG.meta?.goldPerKill ?? 1) * this.goldRateMultiplier;
+    this.runGold += (getConfig().meta?.goldPerKill ?? 1) * this.goldRateMultiplier;
 
     // Boss death: bonus gold + EXP + celebration
     if (this.currentBoss === enemy) {
       this.currentBoss = null;
-      this.runGold += 50 * this.goldRateMultiplier; // boss bonus gold
+      this.runGold += 50 * this.goldRateMultiplier;
       this.particles.emit(enemy.x, enemy.y, 30, '#ffdd44', {
         speedMin: 80, speedMax: 200, sizeMin: 4, sizeMax: 8, lifetime: 1.0, gravity: -20,
       });
       this.particles.emitText(enemy.x, enemy.y - 40, '+50g', '#ffdd44', { fontSize: 20, lifetime: 1.2 });
+
+      // Boss always drops large HP potion
+      this.pickups.push(new Pickup(enemy.x, enemy.y, 0, 'hp', 'large'));
+    }
+
+    // 5% chance to drop HP heart from normal enemies
+    if (enemy.type !== 'boss' && Math.random() < 0.05) {
+      this.pickups.push(new Pickup(enemy.x, enemy.y, 0, 'hp', 'normal'));
     }
 
     // Drop EXP gems
     this.pickups.push(new Pickup(enemy.x, enemy.y, enemy.exp));
+
+    // Heal on kill
+    if (this.player.healOnKill > 0) {
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.healOnKill);
+    }
 
     // Exploder death explosion
     if (enemy.type === 'exploder' && enemy.typeDef.behavior) {
@@ -493,8 +672,6 @@ export class Game {
       this.particles.emit(enemy.x, enemy.y, 15, b.explosionColor, {
         speedMax: 150, lifetime: 0.4, sizeMax: 8,
       });
-
-      // Damage player if in range
       const d = distance(this.player, enemy);
       if (d < b.explosionRadius) {
         this.player.takeDamage(b.explosionDamage);
@@ -536,14 +713,6 @@ export class Game {
         weapon.areas = weapon.areas.filter(a => a.timer > 0);
       }
     }
-  }
-
-  _updateCamera(dt) {
-    const targetX = this.player.x - this.canvas.width / 2;
-    const targetY = this.player.y - this.canvas.height / 2;
-    const lerp = CONFIG.camera.lerp;
-    this.camera.x += (targetX - this.camera.x) * lerp;
-    this.camera.y += (targetY - this.camera.y) * lerp;
   }
 
   // Handle click/tap events for UI
@@ -617,11 +786,11 @@ export class Game {
       this.restart();
       return;
     }
-    if (this.state === 'victory') {
+    if (this.state === 'chapterclear') {
       this.state = 'menu';
       return;
     }
-    if (this.state === 'levelup') {
+    if (this.state === 'levelup' || this.state === 'roomclear') {
       // Horizontal card layout — match renderer positions
       const count = this.skillChoices.length;
       const gap = 10;
@@ -639,7 +808,7 @@ export class Game {
           return;
         }
       }
-      return; // tap outside cards — do nothing, stay in levelup
+      return;
     }
   }
 

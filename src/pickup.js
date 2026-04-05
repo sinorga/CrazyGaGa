@@ -1,13 +1,21 @@
 export class Pickup {
-  constructor(x, y, value) {
+  constructor(x, y, value, type = 'gem', size = 'normal') {
     this.x = x;
     this.y = y;
     this.value = value;
+    this.type = type; // 'gem' | 'hp'
     this.radius = 6;
     this.alive = true;
     this.vx = 0;
     this.vy = 0;
-    this.color = '#44ffaa';
+
+    if (type === 'hp') {
+      this.hpValue = size === 'large' ? 40 : 20;
+      this.color = '#ff6680';
+    } else {
+      this.hpValue = 0;
+      this.color = '#44ffaa';
+    }
   }
 
   // Returns true if collected

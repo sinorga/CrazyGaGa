@@ -1,5 +1,5 @@
 // Game configuration - all tunable values in one place
-export const VERSION = '1.2.2';
+export const VERSION = '2.0.0';
 
 export const CONFIG = {
   // Display
@@ -7,19 +7,15 @@ export const CONFIG = {
     backgroundColor: '#1a1a2e',
   },
 
-  // Camera
-  camera: {
-    lerp: 0.08, // smooth follow factor
-  },
-
-  // Map
-  map: {
-    width: 3000,
-    height: 3000,
-    gridSize: 100, // background grid cell size
-    gridColor: 'rgba(255,255,255,0.03)',
-    borderColor: '#ff4444',
-    borderWidth: 4,
+  // Room arena
+  room: {
+    wallThickness: 20,
+    wallColor: '#334455',
+    floorColor: '#1a1a2e',
+    doorWidth: 80,
+    doorHeight: 60,
+    doorColor: '#ffdd44',
+    playerStartYFraction: 0.8,
   },
 
   // Player
@@ -37,6 +33,7 @@ export const CONFIG = {
   combat: {
     autoAttackDelay: 0.1, // seconds after stopping before auto-attack starts
     fireWhileMoving: false, // allow firing while moving (Archero-style: false = stop to shoot)
+    wallBounces: 0, // base number of wall bounces for projectiles
   },
 
   // Experience & Leveling
@@ -45,21 +42,6 @@ export const CONFIG = {
     expGrowthFactor: 1.15, // each level needs 15% more EXP
     choiceCount: 3, // number of skill choices per level up
     gemBaseValue: 1,
-  },
-
-  // Wave spawning
-  waves: {
-    initialDelay: 1, // seconds before first spawn
-    spawnInterval: 2.5, // seconds between spawns (decreases over time)
-    minSpawnInterval: 0.5,
-    spawnIntervalDecay: 0.99, // multiply interval by this each wave
-    enemiesPerWave: 2, // starting count
-    enemiesPerWaveGrowth: 0.3, // extra enemies per wave
-    maxEnemies: 80, // cap on screen
-    spawnDistanceMin: 400, // min distance from player
-    spawnDistanceMax: 600,
-    bossKillThreshold: 100, // kills needed to trigger boss spawn
-    victoryKills: 500, // kills needed to win
   },
 
   // Spatial hash grid
