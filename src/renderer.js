@@ -1,8 +1,6 @@
 import { CONFIG, VERSION } from './config.js';
 import { SETTINGS_DEFS } from './settings.js';
-import { UPGRADE_DEFINITIONS } from './data/upgrades.js';
-import { CHARACTER_DEFINITIONS } from './data/characters.js';
-import { SKILL_DEFINITIONS } from './data/skills.js';
+import { getUpgradeDefs, getCharacterDefs, getSkillDefs } from './gameConfig.js';
 
 export class Renderer {
   constructor(ctx, canvas) {
@@ -298,7 +296,7 @@ export class Renderer {
       const iconW = 30;
       const maxX = this.canvas.width / 2 - 10; // don't overlap HP bar
       ctx.font = '11px monospace';
-      for (const def of SKILL_DEFINITIONS) {
+      for (const def of getSkillDefs()) {
         const lv = skillLevels[def.id] || 0;
         if (lv > 0) {
           if (sx + iconW > maxX) {
@@ -721,6 +719,12 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.fillText('CrazyGaGa', cx, canvas.height / 2 - 60);
 
+    // Version (next to title, right-aligned)
+    ctx.fillStyle = '#6666aa';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`v${VERSION}`, canvas.width - 12, canvas.height / 2 - 48);
+
     // Subtitle
     ctx.fillStyle = '#aaaacc';
     ctx.font = '16px monospace';
@@ -731,7 +735,7 @@ export class Renderer {
       ctx.fillStyle = '#ffdd44';
       ctx.font = '14px monospace';
       ctx.fillText(`金幣: ${meta.gold}`, cx, canvas.height / 2 + 15);
-      const charDef = CHARACTER_DEFINITIONS.find(c => c.id === meta.selected);
+      const charDef = getCharacterDefs().find(c => c.id === meta.selected);
       if (charDef) {
         ctx.fillStyle = charDef.color;
         ctx.fillText(`角色: ${charDef.name}`, cx, canvas.height / 2 + 35);
@@ -749,16 +753,16 @@ export class Renderer {
     ctx.fillText('WASD / 虛擬搖桿 移動', cx, canvas.height / 2 + 100);
     ctx.fillText('靜止時自動攻擊', cx, canvas.height / 2 + 118);
 
-    // Row of 3 buttons: 商店, 角色, 設定
-    const btnW = 90;
+    // Row of 4 buttons: 商店, 角色, 設定, 配置
+    const btnW = 80;
     const btnH = 40;
-    const gap = 15;
-    const totalW = btnW * 3 + gap * 2;
+    const gap = 10;
+    const totalW = btnW * 4 + gap * 3;
     const startX = cx - totalW / 2;
     const btnY = canvas.height / 2 + 140;
-    const labels = ['商店', '角色', '設定'];
+    const labels = ['商店', '角色', '設定', '配置'];
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const bx = startX + i * (btnW + gap);
       ctx.fillStyle = '#2a2a4e';
       ctx.fillRect(bx, btnY, btnW, btnH);
@@ -771,11 +775,6 @@ export class Renderer {
       ctx.fillText(labels[i], bx + btnW / 2, btnY + 26);
     }
 
-    // Version
-    ctx.fillStyle = '#444466';
-    ctx.font = '11px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`v${VERSION}`, canvas.width - 10, canvas.height - 10);
   }
 
   drawShopPage(canvas, meta) {
@@ -809,8 +808,9 @@ export class Renderer {
     const btnH = 30;
     const btnX = cx + 80;
 
-    for (let i = 0; i < UPGRADE_DEFINITIONS.length; i++) {
-      const def = UPGRADE_DEFINITIONS[i];
+    const upgradeDefs = getUpgradeDefs();
+    for (let i = 0; i < upgradeDefs.length; i++) {
+      const def = upgradeDefs[i];
       const level = meta.upgrades[def.id] || 0;
       const y = startY + i * rowH;
       const maxed = level >= def.maxLevel;
@@ -888,8 +888,9 @@ export class Renderer {
     const cardW = Math.min(320, canvas.width - 40);
     const cardX = cx - cardW / 2;
 
-    for (let i = 0; i < CHARACTER_DEFINITIONS.length; i++) {
-      const def = CHARACTER_DEFINITIONS[i];
+    const charDefs = getCharacterDefs();
+    for (let i = 0; i < charDefs.length; i++) {
+      const def = charDefs[i];
       const y = startY + i * (cardH + gap);
       const unlocked = meta.unlocked.includes(def.id);
       const selected = meta.selected === def.id;
@@ -1013,5 +1014,134 @@ export class Renderer {
     }
 
     ctx.restore();
+  }
+
+  drawConfigEditor(canvas, editorState) {
+    const ctx = this.ctx;
+    const W = canvas.width;
+    const H = canvas.height;
+    const TAB_BAR_H = 42;
+    const BOTTOM_H = 50;
+    const ROW_H = 38;
+    const LABEL_COL = 0.55;
+
+    // Background
+    ctx.fillStyle = CONFIG.canvas.backgroundColor;
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Tab bar ──
+    const tabW = W / 6;
+    const { TABS, TAB_LABELS } = { TABS: ['global','enemies','weapons','passives','characters','upgrades'], TAB_LABELS: { global:'Global', enemies:'Enemies', weapons:'Weapons', passives:'Skills', characters:'Chars', upgrades:'Upgrades' } };
+    for (let i = 0; i < TABS.length; i++) {
+      const tx = i * tabW;
+      const active = editorState.activeTab === TABS[i];
+      ctx.fillStyle = active ? '#2a2a6e' : '#1a1a3e';
+      ctx.fillRect(tx, 0, tabW, TAB_BAR_H);
+      ctx.strokeStyle = active ? '#6688ff' : '#333366';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tx, 0, tabW, TAB_BAR_H);
+      ctx.fillStyle = active ? '#ffffff' : '#7777aa';
+      ctx.font = `${active ? 'bold ' : ''}12px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(TAB_LABELS[TABS[i]], tx + tabW / 2, TAB_BAR_H / 2 + 5);
+    }
+
+    // ── Field list (clipped) ──
+    const listTop = TAB_BAR_H;
+    const listH = H - TAB_BAR_H - BOTTOM_H;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, listTop, W, listH);
+    ctx.clip();
+
+    const fields = editorState.fields;
+    const scrollY = editorState.scrollY;
+    const valueColX = W * LABEL_COL;
+
+    for (let i = 0; i < fields.length; i++) {
+      const fy = listTop + i * ROW_H - scrollY;
+      if (fy + ROW_H < listTop || fy > listTop + listH) continue;
+
+      const f = fields[i];
+      if (f.isHeader) {
+        ctx.fillStyle = '#2a2a5e';
+        ctx.fillRect(0, fy, W, ROW_H);
+        ctx.fillStyle = '#8888cc';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(f.label, 10, fy + ROW_H / 2 + 5);
+      } else {
+        // Alternate row background
+        ctx.fillStyle = i % 2 === 0 ? '#14142a' : '#1a1a32';
+        ctx.fillRect(0, fy, W, ROW_H);
+
+        // Label
+        ctx.fillStyle = f.isModified ? '#ffdd44' : '#aaaacc';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        const labelText = f.label.length > 30 ? '…' + f.label.slice(-29) : f.label;
+        ctx.fillText(labelText, 8, fy + ROW_H / 2 + 5);
+
+        // Value divider
+        ctx.strokeStyle = '#333355';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(valueColX, fy);
+        ctx.lineTo(valueColX, fy + ROW_H);
+        ctx.stroke();
+
+        // Skip drawing value if input is active for this row
+        if (editorState._inputFieldIdx !== i) {
+          const displayVal = typeof f.value === 'number' && !Number.isInteger(f.value)
+            ? f.value.toFixed(3) : String(f.value);
+          ctx.fillStyle = f.isModified ? '#ffdd44' : '#88aaff';
+          ctx.font = `${f.isModified ? 'bold ' : ''}13px monospace`;
+          ctx.textAlign = 'right';
+          ctx.fillText(displayVal, W - 8, fy + ROW_H / 2 + 5);
+        }
+      }
+    }
+
+    // Scroll indicator
+    const totalH = fields.length * ROW_H;
+    if (totalH > listH) {
+      const barH = Math.max(20, listH * listH / totalH);
+      const barY = listTop + (scrollY / (totalH - listH)) * (listH - barH);
+      ctx.fillStyle = 'rgba(100,100,180,0.5)';
+      ctx.fillRect(W - 4, barY, 4, barH);
+    }
+
+    ctx.restore();
+
+    // ── Bottom buttons ──
+    const btnLabels = ['匯出 JSON', '匯入 JSON', '重設預設值', '← 返回'];
+    const btnW = 110;
+    const gap = 8;
+    const totalBW = btnLabels.length * btnW + (btnLabels.length - 1) * gap;
+    const startX = (W - totalBW) / 2;
+    const btnY = H - BOTTOM_H + 8;
+    const btnH = 34;
+
+    for (let i = 0; i < btnLabels.length; i++) {
+      const bx = startX + i * (btnW + gap);
+      ctx.fillStyle = i === 2 ? '#4e1a1a' : (i === 3 ? '#1a1a4e' : '#1a3a1a');
+      ctx.fillRect(bx, btnY, btnW, btnH);
+      ctx.strokeStyle = i === 2 ? '#cc4444' : (i === 3 ? '#4466cc' : '#44aa44');
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, btnY, btnW, btnH);
+      ctx.fillStyle = '#ccccee';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(btnLabels[i], bx + btnW / 2, btnY + btnH / 2 + 5);
+    }
+
+    // Modified count badge
+    const modCount = editorState.fields.filter(f => !f.isHeader && f.isModified).length;
+    if (modCount > 0) {
+      ctx.fillStyle = '#ffdd44';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${modCount} modified`, W - 8, H - BOTTOM_H - 4);
+    }
   }
 }

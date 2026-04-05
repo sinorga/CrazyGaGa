@@ -42,5 +42,5 @@
 ## 7. Integration & Testing
 
 - [x] 7.1 Run all unit tests, ensure 141+ tests pass with new additions
-- [ ] 7.2 Playtest: verify boss encounter, weapon patterns, evolution, difficulty curve
+- [x] 7.2 Playtest: verify boss encounter, weapon patterns, evolution, difficulty curve
 - [x] 7.3 Commit and push

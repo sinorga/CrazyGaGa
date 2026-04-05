@@ -1,5 +1,4 @@
-import { UPGRADE_DEFINITIONS, getUpgradeDefinition } from './data/upgrades.js';
-import { CHARACTER_DEFINITIONS, getCharacterDefinition } from './data/characters.js';
+import { getUpgradeDefs, getUpgradeDef as getUpgradeDefinition, getCharacterDef as getCharacterDefinition, getUpgradeDefs as _getUpgradeDefs } from './gameConfig.js';
 
 const STORAGE_KEY = 'crazygaga_meta';
 
@@ -80,7 +79,7 @@ export function selectCharacter(meta, characterId) {
 export function getUpgradeBonus(meta, stat) {
   let flatBonus = 0;
   let percentBonus = 0;
-  for (const def of UPGRADE_DEFINITIONS) {
+  for (const def of getUpgradeDefs()) {
     if (def.stat !== stat) continue;
     const level = meta.upgrades[def.id] || 0;
     for (let i = 0; i < level; i++) {

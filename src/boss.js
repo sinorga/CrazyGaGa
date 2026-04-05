@@ -1,5 +1,5 @@
 import { Enemy } from './enemy.js';
-import { getEnemyType } from './data/enemies.js';
+import { getEnemyType } from './gameConfig.js';
 
 export const bossAttacks = {
   charge(boss, playerPos, dt, attack) {

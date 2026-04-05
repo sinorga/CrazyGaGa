@@ -1,7 +1,7 @@
 # enemy-system Specification
 
 ## Purpose
-TBD - created by archiving change mvp-playable-game. Update Purpose after archive.
+Defines all enemy types, their behaviors, and the wave spawning system.
 ## Requirements
 ### Requirement: Wave spawner
 The game SHALL spawn enemies in waves based on elapsed time. Spawn interval decreases over time per CONFIG.waves settings. Enemy types unlock based on their unlockTime.
@@ -60,4 +60,15 @@ Active enemies SHALL damage the player on contact.
 #### Scenario: Contact damage
 - **WHEN** an enemy's collision circle overlaps the player's collision circle
 - **THEN** the player takes the enemy's configured contact damage (subject to invincibility)
+
+### Requirement: Summoner enemy behavior
+Summoner enemies SHALL spawn minion enemies on a timer while maintaining distance from the player.
+
+#### Scenario: Summon minions
+- **WHEN** the summoner's summon timer expires
+- **THEN** it spawns summonCount enemies of summonId type near its position and resets the timer
+
+#### Scenario: Keep distance
+- **WHEN** a summoner is closer than preferredDistance to the player
+- **THEN** it moves away from the player
 

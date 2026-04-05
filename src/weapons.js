@@ -1,4 +1,4 @@
-import { getWeaponDefinition } from './data/weapons.js';
+import { getWeaponDef as getWeaponDefinition } from './gameConfig.js';
 import { Projectile } from './projectile.js';
 import { distance } from './collision.js';
 

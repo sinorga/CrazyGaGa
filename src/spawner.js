@@ -1,38 +1,39 @@
-import { CONFIG } from './config.js';
+import { getConfig, getSpawnableEnemies } from './gameConfig.js';
 import { Enemy } from './enemy.js';
-import { getSpawnableEnemies } from './data/enemies.js';
 
 export class WaveSpawner {
   constructor() {
     this.elapsed = 0;
-    this.spawnTimer = CONFIG.waves.initialDelay;
-    this.spawnInterval = CONFIG.waves.spawnInterval;
+    const cfg = getConfig();
+    this.spawnTimer = cfg.waves.initialDelay;
+    this.spawnInterval = cfg.waves.spawnInterval;
     this.waveCount = 0;
   }
 
   getHpMultiplier(elapsedSeconds) {
     const minutes = elapsedSeconds / 60;
-    return 1 + minutes * CONFIG.difficulty.hpMultiplierPerMinute;
+    return 1 + minutes * getConfig().difficulty.hpMultiplierPerMinute;
   }
 
   getDamageMultiplier(elapsedSeconds) {
     const minutes = elapsedSeconds / 60;
-    return 1 + minutes * CONFIG.difficulty.damageMultiplierPerMinute;
+    return 1 + minutes * getConfig().difficulty.damageMultiplierPerMinute;
   }
 
   update(dt, playerPos, currentEnemyCount) {
+    const cfg = getConfig();
     this.elapsed += dt;
     this.spawnTimer -= dt;
 
     if (this.spawnTimer > 0) return [];
-    if (currentEnemyCount >= CONFIG.waves.maxEnemies) {
+    if (currentEnemyCount >= cfg.waves.maxEnemies) {
       this.spawnTimer = 0.5; // retry soon
       return [];
     }
 
     // Spawn a wave
     this.waveCount++;
-    const count = Math.floor(CONFIG.waves.enemiesPerWave + this.waveCount * CONFIG.waves.enemiesPerWaveGrowth);
+    const count = Math.floor(cfg.waves.enemiesPerWave + this.waveCount * cfg.waves.enemiesPerWaveGrowth);
     const available = getSpawnableEnemies(this.elapsed);
 
     if (available.length === 0) {
@@ -46,7 +47,7 @@ export class WaveSpawner {
     const dmgMult = this.getDamageMultiplier(this.elapsed);
 
     for (let i = 0; i < count; i++) {
-      if (currentEnemyCount + spawned.length >= CONFIG.waves.maxEnemies) break;
+      if (currentEnemyCount + spawned.length >= cfg.waves.maxEnemies) break;
 
       // Weighted random selection
       let roll = Math.random() * totalWeight;
@@ -58,14 +59,14 @@ export class WaveSpawner {
 
       // Spawn at random distance/angle from player
       const angle = Math.random() * Math.PI * 2;
-      const dist = CONFIG.waves.spawnDistanceMin +
-        Math.random() * (CONFIG.waves.spawnDistanceMax - CONFIG.waves.spawnDistanceMin);
+      const dist = cfg.waves.spawnDistanceMin +
+        Math.random() * (cfg.waves.spawnDistanceMax - cfg.waves.spawnDistanceMin);
       const sx = playerPos.x + Math.cos(angle) * dist;
       const sy = playerPos.y + Math.sin(angle) * dist;
 
       // Clamp to map
-      const x = Math.max(0, Math.min(CONFIG.map.width, sx));
-      const y = Math.max(0, Math.min(CONFIG.map.height, sy));
+      const x = Math.max(0, Math.min(cfg.map.width, sx));
+      const y = Math.max(0, Math.min(cfg.map.height, sy));
 
       const enemy = new Enemy(x, y, selected);
       // Apply difficulty scaling
@@ -77,8 +78,8 @@ export class WaveSpawner {
 
     // Decay spawn interval
     this.spawnInterval = Math.max(
-      CONFIG.waves.minSpawnInterval,
-      this.spawnInterval * CONFIG.waves.spawnIntervalDecay
+      cfg.waves.minSpawnInterval,
+      this.spawnInterval * cfg.waves.spawnIntervalDecay
     );
     this.spawnTimer = this.spawnInterval;
 
@@ -86,9 +87,10 @@ export class WaveSpawner {
   }
 
   reset() {
+    const cfg = getConfig();
     this.elapsed = 0;
-    this.spawnTimer = CONFIG.waves.initialDelay;
-    this.spawnInterval = CONFIG.waves.spawnInterval;
+    this.spawnTimer = cfg.waves.initialDelay;
+    this.spawnInterval = cfg.waves.spawnInterval;
     this.waveCount = 0;
   }
 }
