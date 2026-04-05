@@ -11,7 +11,7 @@ import { SETTINGS_DEFS, loadSettings, saveSettings, resetSettings, getDefaults, 
 
 export const TABS = ['settings', 'global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
 export const TAB_LABELS = {
-  settings: '設定', global: '全域', enemies: '敵人', weapons: '武器',
+  settings: '調整', global: '全域', enemies: '敵人', weapons: '武器',
   passives: '技能', characters: '角色', upgrades: '升級',
 };
 

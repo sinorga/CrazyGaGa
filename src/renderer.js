@@ -976,7 +976,7 @@ export class Renderer {
 
     // ── Tab bar (7 tabs) ──
     const TABS = ['settings', 'global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
-    const TAB_LABELS = { settings:'設定', global:'全域', enemies:'敵人', weapons:'武器', passives:'技能', characters:'角色', upgrades:'升級' };
+    const TAB_LABELS = { settings:'調整', global:'全域', enemies:'敵人', weapons:'武器', passives:'技能', characters:'角色', upgrades:'升級' };
     const tabW = W / TABS.length;
     for (let i = 0; i < TABS.length; i++) {
       const tx = i * tabW;
