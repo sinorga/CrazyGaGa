@@ -713,6 +713,9 @@ export class Renderer {
   drawMenu(canvas, meta) {
     const ctx = this.ctx;
     const cx = canvas.width / 2;
+    // Anchor content at 38% of screen height so it sits in the upper portion
+    // rather than dead-center, which leaves too much empty space on tall phones.
+    const anchorY = Math.round(canvas.height * 0.38);
 
     ctx.fillStyle = CONFIG.canvas.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -721,41 +724,35 @@ export class Renderer {
     ctx.fillStyle = '#00d4ff';
     ctx.font = 'bold 42px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('CrazyGaGa', cx, canvas.height / 2 - 60);
-
-    // Version (next to title, right-aligned)
-    ctx.fillStyle = '#6666aa';
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`v${VERSION}`, canvas.width - 12, canvas.height / 2 - 48);
+    ctx.fillText('CrazyGaGa', cx, anchorY - 60);
 
     // Subtitle
     ctx.fillStyle = '#aaaacc';
     ctx.font = '16px monospace';
-    ctx.fillText('Roguelite 割草生存', cx, canvas.height / 2 - 20);
+    ctx.fillText('Roguelite 割草生存', cx, anchorY - 20);
 
     // Selected character & gold
     if (meta) {
       ctx.fillStyle = '#ffdd44';
       ctx.font = '14px monospace';
-      ctx.fillText(`金幣: ${meta.gold}`, cx, canvas.height / 2 + 15);
+      ctx.fillText(`金幣: ${meta.gold}`, cx, anchorY + 15);
       const charDef = getCharacterDefs().find(c => c.id === meta.selected);
       if (charDef) {
         ctx.fillStyle = charDef.color;
-        ctx.fillText(`角色: ${charDef.name}`, cx, canvas.height / 2 + 35);
+        ctx.fillText(`角色: ${charDef.name}`, cx, anchorY + 35);
       }
     }
 
     // Start prompt
     ctx.fillStyle = '#ffffff';
     ctx.font = '18px monospace';
-    ctx.fillText('點擊開始遊戲', cx, canvas.height / 2 + 65);
+    ctx.fillText('點擊開始遊戲', cx, anchorY + 65);
 
     // Controls
     ctx.fillStyle = '#666688';
     ctx.font = '13px monospace';
-    ctx.fillText('WASD / 虛擬搖桿 移動', cx, canvas.height / 2 + 100);
-    ctx.fillText('靜止時自動攻擊', cx, canvas.height / 2 + 118);
+    ctx.fillText('WASD / 虛擬搖桿 移動', cx, anchorY + 100);
+    ctx.fillText('靜止時自動攻擊', cx, anchorY + 118);
 
     // Row of 3 buttons: 商店, 角色, 設定
     const btnW = 90;
@@ -763,7 +760,7 @@ export class Renderer {
     const gap = 15;
     const totalW = btnW * 3 + gap * 2;
     const startX = cx - totalW / 2;
-    const btnY = canvas.height / 2 + 140;
+    const btnY = anchorY + 140;
     const labels = ['商店', '角色', '設定'];
 
     for (let i = 0; i < 3; i++) {
@@ -778,6 +775,12 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillText(labels[i], bx + btnW / 2, btnY + 26);
     }
+
+    // Version — bottom-left
+    ctx.fillStyle = '#6666aa';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`v${VERSION}`, 12, canvas.height - 10);
 
   }
 

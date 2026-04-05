@@ -553,7 +553,7 @@ export class Game {
       const gap = 15;
       const totalW = btnW * 3 + gap * 2;
       const startX = this.canvas.width / 2 - totalW / 2;
-      const btnY = this.canvas.height / 2 + 140;
+      const btnY = Math.round(this.canvas.height * 0.38) + 140;
 
       // Shop button
       if (screenX >= startX && screenX <= startX + btnW &&
