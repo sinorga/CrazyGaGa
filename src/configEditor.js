@@ -311,6 +311,13 @@ export function handleClick(state, x, y, canvas, onBack) {
   // Remove existing input if any
   _removeInput(state);
 
+  // Boolean fields: tap to toggle
+  if (typeof field.value === 'boolean') {
+    setOverride(field.section, field.id, field.path, !field.value);
+    buildFields(state);
+    return;
+  }
+
   // Create HTML input overlay
   const rowScreenY = contentY + rowIdx * ROW_H - state.scrollY;
   const rect = canvas.getBoundingClientRect();

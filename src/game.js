@@ -222,11 +222,12 @@ export class Game {
     this.input.update();
 
     const isMoving = this.input.isMoving;
+    const fireWhileMoving = CONFIG.combat.fireWhileMoving;
 
     // Player movement
     if (isMoving) {
       this.player.move(this.input.direction, dt);
-      this.autoAttackDelay = CONFIG.combat.autoAttackDelay;
+      if (!fireWhileMoving) this.autoAttackDelay = CONFIG.combat.autoAttackDelay;
     } else {
       this.autoAttackDelay = Math.max(0, this.autoAttackDelay - dt);
     }
@@ -262,8 +263,8 @@ export class Game {
     this.enemies.push(...newEnemies);
 
     // Weapon updates
-    const canAttack = !isMoving && this.autoAttackDelay <= 0;
-    this.weaponManager.update(dt, this.player, this.enemies, this.projectiles, isMoving && !canAttack);
+    const canAttack = (fireWhileMoving || !isMoving) && this.autoAttackDelay <= 0;
+    this.weaponManager.update(dt, this.player, this.enemies, this.projectiles, !canAttack);
 
     // Update enemies
     const spawnedMinions = [];

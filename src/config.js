@@ -1,5 +1,5 @@
 // Game configuration - all tunable values in one place
-export const VERSION = '1.2.0';
+export const VERSION = '1.2.1';
 
 export const CONFIG = {
   // Display
@@ -36,6 +36,7 @@ export const CONFIG = {
   // Combat
   combat: {
     autoAttackDelay: 0.1, // seconds after stopping before auto-attack starts
+    fireWhileMoving: false, // allow firing while moving (Archero-style: false = stop to shoot)
   },
 
   // Experience & Leveling
