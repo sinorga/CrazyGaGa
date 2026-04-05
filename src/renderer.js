@@ -719,6 +719,12 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.fillText('CrazyGaGa', cx, canvas.height / 2 - 60);
 
+    // Version (next to title, right-aligned)
+    ctx.fillStyle = '#6666aa';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`v${VERSION}`, canvas.width - 12, canvas.height / 2 - 48);
+
     // Subtitle
     ctx.fillStyle = '#aaaacc';
     ctx.font = '16px monospace';
@@ -769,11 +775,6 @@ export class Renderer {
       ctx.fillText(labels[i], bx + btnW / 2, btnY + 26);
     }
 
-    // Version
-    ctx.fillStyle = '#444466';
-    ctx.font = '11px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`v${VERSION}`, canvas.width - 10, canvas.height - 10);
   }
 
   drawShopPage(canvas, meta) {
