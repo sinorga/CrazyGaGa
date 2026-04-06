@@ -8,6 +8,7 @@ function defaultMeta() {
     upgrades: {},       // { upgradeId: level }
     unlocked: ['warrior'], // character ids
     selected: 'warrior',
+    clearedChapters: [], // indices of cleared chapters (0-based)
   };
 }
 
@@ -23,9 +24,24 @@ export function loadMeta() {
       upgrades: parsed.upgrades || {},
       unlocked: Array.isArray(parsed.unlocked) ? parsed.unlocked : ['warrior'],
       selected: parsed.selected || 'warrior',
+      clearedChapters: Array.isArray(parsed.clearedChapters) ? parsed.clearedChapters : [],
     };
   } catch {
     return defaultMeta();
+  }
+}
+
+// Chapter 0 is always unlocked; chapter N requires chapter N-1 to be cleared
+export function isChapterUnlocked(meta, chapterIndex) {
+  if (chapterIndex === 0) return true;
+  return meta.clearedChapters.includes(chapterIndex - 1);
+}
+
+// Mark chapter as cleared and persist
+export function clearChapter(meta, chapterIndex) {
+  if (!meta.clearedChapters.includes(chapterIndex)) {
+    meta.clearedChapters.push(chapterIndex);
+    saveMeta(meta);
   }
 }
 

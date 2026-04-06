@@ -15,7 +15,8 @@ import { ParticleSystem } from './particles.js';
 import { updateBossAI } from './boss.js';
 import { canEvolve, getEvolutionRecipe } from './data/evolutions.js';
 import { loadSettings, getDefaults, applyUserSettings } from './settings.js';
-import { loadMeta, saveMeta, purchaseUpgrade, unlockCharacter, selectCharacter, getUpgradeBonus } from './meta.js';
+import { loadMeta, saveMeta, purchaseUpgrade, unlockCharacter, selectCharacter, getUpgradeBonus, isChapterUnlocked, clearChapter } from './meta.js';
+import { CHAPTERS } from './data/chapters.js';
 
 export class Game {
   constructor(canvas) {
@@ -23,7 +24,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'shop' | 'characters' | 'config_editor' | 'playing' | 'paused' | 'levelup' | 'roomclear' | 'chapterclear' | 'gameover' | 'victory'
+    this.state = 'menu'; // 'menu' | 'shop' | 'characters' | 'config_editor' | 'chapter_select' | 'playing' | 'paused' | 'levelup' | 'roomclear' | 'chapterclear' | 'gameover' | 'victory'
     this.mode = 'archero'; // 'archero' | 'survivor'
     this.elapsed = 0;
 
@@ -159,6 +160,8 @@ export class Game {
       this.camera = { x: 0, y: 0 };
       this._doorNudgeY = 0;
       this.roomManager.reset();
+      // Start at the chosen chapter (default 0)
+      this.roomManager.chapterIndex = this._startChapterIndex ?? 0;
       const initialEnemies = this.roomManager.enterRoom(this);
       this.enemies.push(...initialEnemies);
       this._spawnRoomObjects();
@@ -235,10 +238,11 @@ export class Game {
 
   triggerChapterClear() {
     if (this.state !== 'playing') return;
+    const clearedIndex = this.roomManager.chapterIndex;
     this.chapterClearNum = this.roomManager.currentChapter.id;
-    this.runGold *= 1; // could double gold on chapter clear in future
     this.state = 'chapterclear';
     this.meta.gold += Math.floor(this.runGold);
+    clearChapter(this.meta, clearedIndex); // unlock next chapter
     saveMeta(this.meta);
   }
 
@@ -850,10 +854,11 @@ export class Game {
       const modeStartX = this.canvas.width / 2 - modeTotalW / 2;
       const modeBtnY = Math.round(this.canvas.height * 0.38) + 200;
 
-      // Archero (left) button
+      // Archero (left) button → chapter select
       if (screenX >= modeStartX && screenX <= modeStartX + modeBtnW &&
           screenY >= modeBtnY && screenY <= modeBtnY + modeBtnH) {
-        this.startGame('archero');
+        this.meta = loadMeta();
+        this.state = 'chapter_select';
         return;
       }
       // Survivor (right) button
@@ -862,6 +867,30 @@ export class Game {
           screenY >= modeBtnY && screenY <= modeBtnY + modeBtnH) {
         this.startGame('survivor');
         return;
+      }
+      return;
+    }
+    if (this.state === 'chapter_select') {
+      // Back button (top-left)
+      if (screenX < 80 && screenY < 50) {
+        this.state = 'menu';
+        return;
+      }
+      // Chapter cards — match renderer layout
+      const cardW = Math.min(320, this.canvas.width - 40);
+      const cardH = 90;
+      const cardGap = 16;
+      const cardX = (this.canvas.width - cardW) / 2;
+      const startY = this.canvas.height * 0.28;
+      for (let i = 0; i < CHAPTERS.length; i++) {
+        if (!isChapterUnlocked(this.meta, i)) continue;
+        const cy = startY + i * (cardH + cardGap);
+        if (screenX >= cardX && screenX <= cardX + cardW &&
+            screenY >= cy && screenY <= cy + cardH) {
+          this._startChapterIndex = i;
+          this.startGame('archero');
+          return;
+        }
       }
       return;
     }
@@ -904,14 +933,9 @@ export class Game {
       return;
     }
     if (this.state === 'chapterclear') {
-      if (!this.roomManager.isLastChapter) {
-        // Advance to the next chapter and continue playing
-        this.roomManager.advanceChapter(this);
-        this._spawnRoomObjects();
-        this.state = 'playing';
-      } else {
-        this.state = 'menu';
-      }
+      // Return to chapter select so player can pick any unlocked chapter
+      this.meta = loadMeta();
+      this.state = 'chapter_select';
       return;
     }
     if (this.state === 'levelup' || this.state === 'roomclear') {

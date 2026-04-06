@@ -257,7 +257,7 @@ export class Renderer {
     }
   }
 
-  drawChapterClear(canvas, chapterNum, runGold, isLastChapter) {
+  drawChapterClear(canvas, chapterNum, runGold) {
     const ctx = this.ctx;
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
@@ -272,18 +272,15 @@ export class Renderer {
 
     ctx.fillStyle = '#44dd44';
     ctx.font = '20px monospace';
-    ctx.fillText(isLastChapter ? '全章節完成！' : '恭喜！', cx, cy - 40);
+    ctx.fillText('恭喜！下一章節已解鎖', cx, cy - 40);
 
     ctx.fillStyle = '#ffdd44';
     ctx.font = '18px monospace';
     ctx.fillText(`獲得金幣: ${Math.floor(runGold || 0)}`, cx, cy + 10);
 
-    // Continue button
-    const btnLabel = isLastChapter ? '點擊返回主選單' : '點擊繼續下一章';
-    const btnColor = isLastChapter ? '#aaaaaa' : '#44aaff';
-    ctx.fillStyle = btnColor;
+    ctx.fillStyle = '#44aaff';
     ctx.font = 'bold 18px monospace';
-    ctx.fillText(btnLabel, cx, cy + 70);
+    ctx.fillText('點擊返回章節選擇', cx, cy + 70);
   }
 
   drawChests(chests, camera, elapsed) {
@@ -1090,6 +1087,108 @@ export class Renderer {
     ctx.textAlign = 'left';
     ctx.fillText(`v${VERSION}`, 12, canvas.height - 10);
 
+  }
+
+  drawChapterSelect(canvas, meta, chapters) {
+    const ctx = this.ctx;
+    const cx = canvas.width / 2;
+
+    ctx.fillStyle = CONFIG.canvas.backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Back button
+    ctx.fillStyle = '#aaaacc';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← 返回', 15, 32);
+
+    // Title
+    ctx.fillStyle = '#00d4ff';
+    ctx.font = 'bold 26px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('選擇章節', cx, canvas.height * 0.18);
+
+    // Chapter info
+    const chapterMeta = [
+      { icon: '🌲', difficulty: '★', diffLabel: 'Normal', color: '#44aa66' },
+      { icon: '🌋', difficulty: '★★', diffLabel: 'Hard', color: '#dd8833' },
+      { icon: '❄️', difficulty: '★★★', diffLabel: 'Expert', color: '#4488dd' },
+    ];
+
+    const cardW = Math.min(320, canvas.width - 40);
+    const cardH = 90;
+    const cardGap = 16;
+    const cardX = cx - cardW / 2;
+    const startY = canvas.height * 0.28;
+
+    for (let i = 0; i < chapters.length; i++) {
+      const ch = chapters[i];
+      const cm = chapterMeta[i] || { icon: '?', difficulty: '?', diffLabel: '', color: '#666' };
+      const cy = startY + i * (cardH + cardGap);
+      const unlocked = meta && (i === 0 || (meta.clearedChapters || []).includes(i - 1));
+      const cleared = meta && (meta.clearedChapters || []).includes(i);
+
+      // Card background
+      ctx.fillStyle = unlocked ? '#1a1a3e' : '#111122';
+      ctx.fillRect(cardX, cy, cardW, cardH);
+
+      // Card border
+      ctx.strokeStyle = unlocked ? cm.color : '#333355';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cardX, cy, cardW, cardH);
+
+      if (!unlocked) {
+        // Locked state
+        ctx.fillStyle = '#444466';
+        ctx.font = '28px serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🔒', cx, cy + 54);
+        ctx.font = '14px monospace';
+        ctx.fillText('通關前一章節以解鎖', cx, cy + 78);
+      } else {
+        // Chapter icon + name
+        ctx.font = '28px serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(cm.icon, cardX + 16, cy + 50);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 17px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`第${ch.id}章  ${ch.name}`, cardX + 56, cy + 32);
+
+        // Difficulty
+        ctx.fillStyle = cm.color;
+        ctx.font = '13px monospace';
+        ctx.fillText(`${cm.difficulty} ${cm.diffLabel}`, cardX + 56, cy + 54);
+
+        // Cleared badge
+        if (cleared) {
+          ctx.fillStyle = '#44dd44';
+          ctx.font = 'bold 12px monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText('✓ 已通關', cardX + cardW - 12, cy + 32);
+        } else {
+          ctx.fillStyle = '#aaaacc';
+          ctx.font = '12px monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText('未通關', cardX + cardW - 12, cy + 32);
+        }
+
+        // Room count
+        ctx.fillStyle = '#888899';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${ch.rooms.length} 房間`, cardX + cardW - 12, cy + 54);
+
+        // Play hint
+        ctx.fillStyle = '#aaaacc';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('點擊開始', cx, cy + cardH - 10);
+      }
+    }
+
+    ctx.textAlign = 'left'; // reset
   }
 
   drawShopPage(canvas, meta) {

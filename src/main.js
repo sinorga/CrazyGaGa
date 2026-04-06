@@ -1,6 +1,7 @@
 import { Game } from './game.js';
 import { Renderer } from './renderer.js';
 import { applyUserSettings } from './settings.js';
+import { CHAPTERS } from './data/chapters.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -151,6 +152,10 @@ function render() {
     renderer.drawConfigEditor(canvas, game.configEditorState);
     return;
   }
+  if (game.state === 'chapter_select') {
+    renderer.drawChapterSelect(canvas, game.meta, CHAPTERS);
+    return;
+  }
 
   const cam = renderer.applyShake(game.camera);
   renderer.clear(cam);
@@ -193,7 +198,7 @@ function render() {
     renderer.drawRoomClearPanel(game.skillChoices, canvas);
   }
   if (game.state === 'chapterclear') {
-    renderer.drawChapterClear(canvas, game.chapterClearNum, game.runGold, game.roomManager.isLastChapter);
+    renderer.drawChapterClear(canvas, game.chapterClearNum, game.runGold);
   }
   if (game.state === 'gameover') {
     renderer.drawGameOver(game.player, game.elapsed, canvas, game.runGold);
