@@ -136,6 +136,32 @@ export const SKILL_DEFINITIONS = [
     valueType: 'flat',
   },
 
+  // --- ARCHERO UNLIMITED FALLBACK SKILLS (always available, no max level) ---
+  {
+    id: 'skill_heal_potion',
+    name: '治癒藥水',
+    description: '立即回復40 HP（可重複選取）',
+    category: 'passive',
+    pool: 'archero',
+    icon: '🧪',
+    maxLevel: 999,
+    stat: 'hp',
+    value: 40,
+    valueType: 'flat',
+  },
+  {
+    id: 'skill_max_hp_up',
+    name: '強化生命',
+    description: '最大HP+20（可重複選取）',
+    category: 'passive',
+    pool: 'archero',
+    icon: '❤️',
+    maxLevel: 999,
+    stat: 'maxHp',
+    value: 20,
+    valueType: 'flat',
+  },
+
   // --- WEAPON SKILLS (pool: 'levelup') ---
   {
     id: 'skill_arrow',

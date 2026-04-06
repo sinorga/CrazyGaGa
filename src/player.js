@@ -118,9 +118,14 @@ export class Player {
 
     if (valueType === 'flat') {
       switch (stat) {
+        case 'hp':
+          // Instant heal — does not increase max HP
+          this.hp = Math.min(this.maxHp, this.hp + value);
+          break;
         case 'maxHp':
           this.maxHp += value;
-          this.hp += value; // heal by the same amount
+          this.hp += value; // heal by the same amount (capped below)
+          this.hp = Math.min(this.maxHp, this.hp);
           break;
         case 'armor':
           this.armor += value;
