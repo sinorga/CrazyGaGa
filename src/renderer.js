@@ -103,6 +103,7 @@ export class Renderer {
     const ctx = this.ctx;
     const room = CONFIG.room;
     const w = this.canvas.width;
+    const h = this.canvas.height;
     const wall = room.wallThickness;
     const doorW = room.doorWidth;
     const doorH = room.doorHeight;
@@ -110,28 +111,58 @@ export class Renderer {
     const doorY = wall - doorH / 2;
 
     const anim = roomManager.doorAnim;
-    const alpha = 0.4 + anim * 0.6;
+    const pulse = 0.6 + Math.sin(elapsed * 5) * 0.4;
 
-    // Door frame glow
+    // Outer glow
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = anim * pulse * 0.35;
+    ctx.fillStyle = room.doorColor;
+    ctx.fillRect(doorX - 10, doorY - 6, doorW + 20, doorH + 12);
+    ctx.restore();
+
+    // Door fill
+    ctx.save();
+    ctx.globalAlpha = 0.4 + anim * 0.6;
     ctx.fillStyle = room.doorColor;
     ctx.fillRect(doorX, doorY, doorW, doorH);
+    ctx.restore();
 
-    // Shimmer effect
-    ctx.globalAlpha = alpha * (0.5 + Math.sin(elapsed * 4) * 0.3);
+    // Inner shimmer border
+    ctx.save();
+    ctx.globalAlpha = anim * pulse;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.strokeRect(doorX + 2, doorY + 2, doorW - 4, doorH - 4);
     ctx.restore();
 
-    // Door label
+    // "NEXT" label on door
     if (anim >= 1) {
       ctx.save();
-      ctx.fillStyle = '#ffdd44';
-      ctx.font = 'bold 12px monospace';
+      ctx.fillStyle = '#1a1a2e';
+      ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('GO →', w / 2, doorY + doorH / 2 + 5);
+      ctx.fillText('NEXT', w / 2, doorY + doorH / 2 + 5);
+      ctx.restore();
+    }
+
+    // Pulsing arrow indicator in center of room pointing toward door
+    if (anim >= 1) {
+      const arrowX = w / 2;
+      const arrowY = h * 0.35;
+      const bounce = Math.sin(elapsed * 4) * 6;
+      ctx.save();
+      ctx.globalAlpha = 0.5 + Math.sin(elapsed * 4) * 0.3;
+      ctx.fillStyle = room.doorColor;
+      ctx.beginPath();
+      ctx.moveTo(arrowX, arrowY - 14 + bounce);
+      ctx.lineTo(arrowX - 14, arrowY + 6 + bounce);
+      ctx.lineTo(arrowX - 5, arrowY + 6 + bounce);
+      ctx.lineTo(arrowX - 5, arrowY + 20 + bounce);
+      ctx.lineTo(arrowX + 5, arrowY + 20 + bounce);
+      ctx.lineTo(arrowX + 5, arrowY + 6 + bounce);
+      ctx.lineTo(arrowX + 14, arrowY + 6 + bounce);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
     }
   }
@@ -226,9 +257,10 @@ export class Renderer {
     }
   }
 
-  drawChapterClear(canvas, chapterNum, runGold) {
+  drawChapterClear(canvas, chapterNum, runGold, isLastChapter) {
     const ctx = this.ctx;
     const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -236,19 +268,22 @@ export class Renderer {
     ctx.fillStyle = '#ffdd44';
     ctx.font = 'bold 36px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`第${chapterNum}章 通關！`, cx, canvas.height / 2 - 80);
+    ctx.fillText(`第${chapterNum}章 通關！`, cx, cy - 80);
 
     ctx.fillStyle = '#44dd44';
     ctx.font = '20px monospace';
-    ctx.fillText('恭喜！', cx, canvas.height / 2 - 40);
+    ctx.fillText(isLastChapter ? '全章節完成！' : '恭喜！', cx, cy - 40);
 
     ctx.fillStyle = '#ffdd44';
     ctx.font = '18px monospace';
-    ctx.fillText(`獲得金幣: ${Math.floor(runGold || 0)}`, cx, canvas.height / 2 + 10);
+    ctx.fillText(`獲得金幣: ${Math.floor(runGold || 0)}`, cx, cy + 10);
 
-    ctx.fillStyle = '#aaaaaa';
-    ctx.font = '16px monospace';
-    ctx.fillText('點擊返回主選單', cx, canvas.height / 2 + 70);
+    // Continue button
+    const btnLabel = isLastChapter ? '點擊返回主選單' : '點擊繼續下一章';
+    const btnColor = isLastChapter ? '#aaaaaa' : '#44aaff';
+    ctx.fillStyle = btnColor;
+    ctx.font = 'bold 18px monospace';
+    ctx.fillText(btnLabel, cx, cy + 70);
   }
 
   drawChests(chests, camera, elapsed) {

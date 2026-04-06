@@ -20,6 +20,7 @@ export class RoomManager {
   get currentRoomId()   { return this.currentChapter.rooms[this.roomIndex]; }
   get currentTemplate() { return getRoomTemplate(this.currentRoomId); }
   get isLastRoom()      { return this.roomIndex >= this.currentChapter.rooms.length - 1; }
+  get isLastChapter()   { return this.chapterIndex >= CHAPTERS.length - 1; }
   get isBossRoom()      { return this.currentTemplate?.type === 'boss'; }
   get isTreasureRoom()  { return this.currentTemplate?.type === 'treasure'; }
 

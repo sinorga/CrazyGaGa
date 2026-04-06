@@ -43,8 +43,9 @@ export class Game {
     this.spatialHash = new SpatialHash();
     this.particles = new ParticleSystem();
 
-    // Camera: fixed for archero, scrolling for survivor
+    // Camera: fixed for archero (with door-nudge), scrolling for survivor
     this.camera = { x: 0, y: 0 };
+    this._doorNudgeY = 0; // archero: smooth Y offset toward door when open
 
     // Survivor state
     this.nextBossKills = 0;
@@ -156,6 +157,7 @@ export class Game {
       const cfg = getConfig();
       this.player.reset(this.canvas.width / 2, this.canvas.height * cfg.room.playerStartYFraction);
       this.camera = { x: 0, y: 0 };
+      this._doorNudgeY = 0;
       this.roomManager.reset();
       const initialEnemies = this.roomManager.enterRoom(this);
       this.enemies.push(...initialEnemies);
@@ -474,8 +476,33 @@ export class Game {
     this.barrels = this.barrels.filter(b => b.alive);
 
     if (this.mode === 'archero') {
+      const wasDoorOpen = this.roomManager.doorOpen;
       // Room clear check after deaths are processed
       this.roomManager.onEnemyDeath(this.enemies);
+
+      if (this.roomManager.doorOpen && !wasDoorOpen) {
+        // Room just cleared — auto-collect all pickups
+        for (const pickup of this.pickups) {
+          if (!pickup.alive) continue;
+          pickup.alive = false;
+          if (pickup.type === 'hp') {
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + pickup.hpValue);
+          } else {
+            this.player.addExp(pickup.value);
+          }
+        }
+        this.pickups = this.pickups.filter(p => p.alive);
+        // Level-up check after bulk exp
+        if (this.player.shouldLevelUp()) {
+          this.triggerLevelUp();
+          return;
+        }
+      }
+
+      // Camera nudge: when door is open, shift view up to make door visible
+      const nudgeTarget = this.roomManager.doorOpen ? -60 : 0;
+      this._doorNudgeY += (nudgeTarget - this._doorNudgeY) * 0.05;
+      this.camera.y = this._doorNudgeY;
 
       // Room-clear door particle burst (once)
       if (this.roomManager.doorOpen && !this._doorBurstEmitted) {
@@ -877,7 +904,14 @@ export class Game {
       return;
     }
     if (this.state === 'chapterclear') {
-      this.state = 'menu';
+      if (!this.roomManager.isLastChapter) {
+        // Advance to the next chapter and continue playing
+        this.roomManager.advanceChapter(this);
+        this._spawnRoomObjects();
+        this.state = 'playing';
+      } else {
+        this.state = 'menu';
+      }
       return;
     }
     if (this.state === 'levelup' || this.state === 'roomclear') {

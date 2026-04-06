@@ -172,7 +172,7 @@ function render() {
   renderer.drawDamageFlash();
   renderer.drawLevelUpFlash();
   renderer.drawHUD(game.player, game.elapsed, game.runGold, game.player.skillLevels);
-  if (game.mode === 'archero') {
+  if (game.mode === 'archero' && game.state === 'playing') {
     renderer.drawChapterHUD(game.roomManager);
   }
   if (game.currentBoss) {
@@ -193,7 +193,7 @@ function render() {
     renderer.drawRoomClearPanel(game.skillChoices, canvas);
   }
   if (game.state === 'chapterclear') {
-    renderer.drawChapterClear(canvas, game.chapterClearNum, game.runGold);
+    renderer.drawChapterClear(canvas, game.chapterClearNum, game.runGold, game.roomManager.isLastChapter);
   }
   if (game.state === 'gameover') {
     renderer.drawGameOver(game.player, game.elapsed, canvas, game.runGold);
