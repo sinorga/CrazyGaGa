@@ -63,14 +63,19 @@ export class Player {
     this.x += direction.x * this.speed * dt;
     this.y += direction.y * this.speed * dt;
 
-    // Clamp to room walls (or canvas if no room config)
-    const wall = getConfig().room?.wallThickness ?? 20;
-    const minX = wall + this.radius;
-    const minY = wall + this.radius;
-    const maxX = (canvasW ?? 800) - wall - this.radius;
-    const maxY = (canvasH ?? 600) - wall - this.radius;
-    this.x = Math.max(minX, Math.min(maxX, this.x));
-    this.y = Math.max(minY, Math.min(maxY, this.y));
+    const cfg = getConfig();
+    if (canvasW != null) {
+      // Archero mode: clamp to room walls inside canvas
+      const wall = cfg.room?.wallThickness ?? 20;
+      this.x = Math.max(wall + this.radius, Math.min(canvasW - wall - this.radius, this.x));
+      this.y = Math.max(wall + this.radius, Math.min(canvasH - wall - this.radius, this.y));
+    } else {
+      // Survivor mode: clamp to map boundaries
+      const mapW = cfg.map?.width ?? 3000;
+      const mapH = cfg.map?.height ?? 3000;
+      this.x = Math.max(this.radius, Math.min(mapW - this.radius, this.x));
+      this.y = Math.max(this.radius, Math.min(mapH - this.radius, this.y));
+    }
   }
 
   takeDamage(amount) {
