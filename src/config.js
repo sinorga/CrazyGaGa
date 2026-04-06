@@ -1,5 +1,5 @@
 // Game configuration - all tunable values in one place
-export const VERSION = '2.0.0';
+export const VERSION = '2.1.0';
 
 export const CONFIG = {
   // Display
@@ -69,6 +69,36 @@ export const CONFIG = {
   difficulty: {
     hpMultiplierPerMinute: 0.1,      // +10% HP per minute
     damageMultiplierPerMinute: 0.05,  // +5% damage per minute
+  },
+
+  // Map (survivor mode)
+  map: {
+    width: 3000,
+    height: 3000,
+    gridSize: 100,
+    gridColor: 'rgba(255,255,255,0.03)',
+    borderColor: '#ff4444',
+    borderWidth: 4,
+  },
+
+  // Camera (survivor mode)
+  camera: {
+    lerp: 0.08,
+  },
+
+  // Wave spawning (survivor mode)
+  waves: {
+    initialDelay: 1,
+    spawnInterval: 2.5,
+    minSpawnInterval: 0.5,
+    spawnIntervalDecay: 0.99,
+    enemiesPerWave: 2,
+    enemiesPerWaveGrowth: 0.3,
+    maxEnemies: 80,
+    spawnDistanceMin: 400,
+    spawnDistanceMax: 600,
+    bossKillThreshold: 100,
+    victoryKills: 500,
   },
 
   // Meta progression (Phase 5 placeholder)

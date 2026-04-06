@@ -11,6 +11,9 @@ describe('CONFIG', () => {
     expect(CONFIG.collision).toBeDefined();
     expect(CONFIG.particles).toBeDefined();
     expect(CONFIG.ui).toBeDefined();
+    expect(CONFIG.map).toBeDefined();
+    expect(CONFIG.camera).toBeDefined();
+    expect(CONFIG.waves).toBeDefined();
   });
 
   it('has valid player config', () => {
@@ -31,5 +34,22 @@ describe('CONFIG', () => {
     expect(CONFIG.leveling.baseExpToLevel).toBeGreaterThan(0);
     expect(CONFIG.leveling.expGrowthFactor).toBeGreaterThan(1);
     expect(CONFIG.leveling.choiceCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('has valid map config (survivor mode)', () => {
+    expect(CONFIG.map.width).toBeGreaterThan(0);
+    expect(CONFIG.map.height).toBeGreaterThan(0);
+    expect(CONFIG.map.gridSize).toBeGreaterThan(0);
+  });
+
+  it('has valid waves config (survivor mode)', () => {
+    expect(CONFIG.waves.spawnInterval).toBeGreaterThan(0);
+    expect(CONFIG.waves.maxEnemies).toBeGreaterThan(0);
+    expect(CONFIG.waves.victoryKills).toBeGreaterThan(0);
+  });
+
+  it('has valid camera config (survivor mode)', () => {
+    expect(CONFIG.camera.lerp).toBeGreaterThan(0);
+    expect(CONFIG.camera.lerp).toBeLessThan(1);
   });
 });

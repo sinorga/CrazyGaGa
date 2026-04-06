@@ -32,6 +32,45 @@ export class Renderer {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
+  drawMap(camera) {
+    const ctx = this.ctx;
+    const cfg = CONFIG;
+    const map = cfg.map;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const ox = camera ? camera.x : 0;
+    const oy = camera ? camera.y : 0;
+
+    // Floor fill (already done by clear())
+
+    // Grid lines
+    ctx.strokeStyle = map.gridColor;
+    ctx.lineWidth = 1;
+    const startGridX = Math.floor(ox / map.gridSize) * map.gridSize;
+    const startGridY = Math.floor(oy / map.gridSize) * map.gridSize;
+    for (let gx = startGridX; gx < ox + w + map.gridSize; gx += map.gridSize) {
+      const sx = gx - ox;
+      ctx.beginPath();
+      ctx.moveTo(sx, 0);
+      ctx.lineTo(sx, h);
+      ctx.stroke();
+    }
+    for (let gy = startGridY; gy < oy + h + map.gridSize; gy += map.gridSize) {
+      const sy = gy - oy;
+      ctx.beginPath();
+      ctx.moveTo(0, sy);
+      ctx.lineTo(w, sy);
+      ctx.stroke();
+    }
+
+    // Map border
+    const bx = -ox;
+    const by = -oy;
+    ctx.strokeStyle = map.borderColor;
+    ctx.lineWidth = map.borderWidth;
+    ctx.strokeRect(bx, by, map.width, map.height);
+  }
+
   drawRoom(roomManager, camera) {
     const ctx = this.ctx;
     const room = CONFIG.room;
@@ -958,10 +997,30 @@ export class Renderer {
       }
     }
 
-    // Start prompt
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '18px monospace';
-    ctx.fillText('點擊開始遊戲', cx, anchorY + 65);
+    // Mode buttons
+    const modeBtnW = 160;
+    const modeBtnH = 50;
+    const modeGap = 20;
+    const modeTotalW = modeBtnW * 2 + modeGap;
+    const modeStartX = cx - modeTotalW / 2;
+    const modeBtnY = anchorY + 200;
+
+    const modeButtons = [
+      { label: '🏹 地城模式', color: '#003366', border: '#00aaff' },
+      { label: '⚔️ 生存模式', color: '#332200', border: '#ffaa00' },
+    ];
+    for (let i = 0; i < 2; i++) {
+      const bx = modeStartX + i * (modeBtnW + modeGap);
+      ctx.fillStyle = modeButtons[i].color;
+      ctx.fillRect(bx, modeBtnY, modeBtnW, modeBtnH);
+      ctx.strokeStyle = modeButtons[i].border;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, modeBtnY, modeBtnW, modeBtnH);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '15px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(modeButtons[i].label, bx + modeBtnW / 2, modeBtnY + 32);
+    }
 
     // Controls
     ctx.fillStyle = '#666688';

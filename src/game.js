@@ -5,6 +5,7 @@ import { Input } from './input.js';
 import { Player } from './player.js';
 import { Enemy, isBlockedByShielder } from './enemy.js';
 import { RoomManager } from './roomManager.js';
+import { WaveSpawner } from './spawner.js';
 import { WeaponManager } from './weapons.js';
 import { Pickup } from './pickup.js';
 import { Chest } from './chest.js';
@@ -22,7 +23,8 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new Input(canvas);
 
-    this.state = 'menu'; // 'menu' | 'shop' | 'characters' | 'config_editor' | 'playing' | 'paused' | 'levelup' | 'roomclear' | 'chapterclear' | 'gameover'
+    this.state = 'menu'; // 'menu' | 'shop' | 'characters' | 'config_editor' | 'playing' | 'paused' | 'levelup' | 'roomclear' | 'chapterclear' | 'gameover' | 'victory'
+    this.mode = 'archero'; // 'archero' | 'survivor'
     this.elapsed = 0;
 
     // Entities
@@ -36,12 +38,17 @@ export class Game {
 
     // Systems
     this.roomManager = new RoomManager();
+    this.spawner = new WaveSpawner();
     this.weaponManager = new WeaponManager();
     this.spatialHash = new SpatialHash();
     this.particles = new ParticleSystem();
 
-    // Camera: always fixed at origin (room fills canvas)
+    // Camera: fixed for archero, scrolling for survivor
     this.camera = { x: 0, y: 0 };
+
+    // Survivor state
+    this.nextBossKills = 0;
+    this.bossPhase = 0;
 
     // UI state
     this.skillChoices = [];
@@ -81,13 +88,13 @@ export class Game {
     return getEnemyType(id);
   }
 
-  startGame() {
+  startGame(mode = 'archero') {
+    this.mode = mode;
     reloadCache(); // apply any config overrides before run starts
     this.state = 'playing';
     this.elapsed = 0;
     this.runGold = 0;
     this.meta = loadMeta();
-    this.player.reset(this.canvas.width / 2, this.canvas.height * getConfig().room.playerStartYFraction);
     this.enemies = [];
     this.projectiles = [];
     this.enemyProjectiles = [];
@@ -95,8 +102,10 @@ export class Game {
     this.chests = [];
     this.barrels = [];
     this.silenceTimer = 0;
-    this.roomManager.reset();
     this.weaponManager.reset();
+
+    // Reset player stats (position will be set per-mode below)
+    this.player.reset(0, 0);
 
     // Apply character stats
     const charDef = getCharacterDefinition(this.meta.selected);
@@ -143,14 +152,30 @@ export class Game {
     this.autoAttackDelay = 0;
     this._prevState = null;
 
-    // Enter first room
-    const initialEnemies = this.roomManager.enterRoom(this);
-    this.enemies.push(...initialEnemies);
-    this._spawnRoomObjects();
+    if (mode === 'archero') {
+      const cfg = getConfig();
+      this.player.reset(this.canvas.width / 2, this.canvas.height * cfg.room.playerStartYFraction);
+      this.camera = { x: 0, y: 0 };
+      this.roomManager.reset();
+      const initialEnemies = this.roomManager.enterRoom(this);
+      this.enemies.push(...initialEnemies);
+      this._spawnRoomObjects();
+    } else {
+      // Survivor mode
+      const cfg = getConfig();
+      this.player.reset(cfg.map.width / 2, cfg.map.height / 2);
+      this.camera = {
+        x: cfg.map.width / 2 - this.canvas.width / 2,
+        y: cfg.map.height / 2 - this.canvas.height / 2,
+      };
+      this.spawner.reset();
+      this.nextBossKills = cfg.waves.bossKillThreshold;
+      this.bossPhase = 0;
+    }
   }
 
   restart() {
-    this.startGame();
+    this.startGame(this.mode);
   }
 
   triggerLevelUp() {
@@ -290,7 +315,11 @@ export class Game {
 
     // Player movement
     if (isMoving) {
-      this.player.move(this.input.direction, dt, this.canvas.width, this.canvas.height);
+      if (this.mode === 'archero') {
+        this.player.move(this.input.direction, dt, this.canvas.width, this.canvas.height);
+      } else {
+        this.player.move(this.input.direction, dt); // survivor: map bounds fallback
+      }
       if (!fireWhileMoving) this.autoAttackDelay = cfg.combat.autoAttackDelay;
     } else {
       this.autoAttackDelay = Math.max(0, this.autoAttackDelay - dt);
@@ -309,26 +338,44 @@ export class Game {
       }
     }
 
-    // Room manager update: spawns new wave enemies
-    const newEnemies = this.roomManager.update(dt, this.enemies, this.player, this);
-    if (newEnemies.length > 0) {
-      this.enemies.push(...newEnemies);
-      // Track boss
-      for (const e of newEnemies) {
-        if (e.type === 'boss') {
-          this.currentBoss = e;
-          this.bossEntrance = { timer: 1.2, bossName: e.typeDef.name };
+    if (this.mode === 'archero') {
+      // Room manager update: spawns new wave enemies
+      const newEnemies = this.roomManager.update(dt, this.enemies, this.player, this);
+      if (newEnemies.length > 0) {
+        this.enemies.push(...newEnemies);
+        for (const e of newEnemies) {
+          if (e.type === 'boss') {
+            this.currentBoss = e;
+            this.bossEntrance = { timer: 1.2, bossName: e.typeDef.name };
+          }
         }
       }
-    }
 
-    // Player-door overlap check (room cleared)
-    if (this.roomManager.doorOpen && this.roomManager.doorAnim >= 1) {
-      const door = this.roomManager.getDoorRect(this.canvas.width);
-      if (this.player.x >= door.x && this.player.x <= door.x + door.w &&
-          this.player.y >= door.y && this.player.y <= door.y + door.h) {
-        this.roomManager.onPlayerReachDoor(this);
-        return; // state changed, stop update
+      // Player-door overlap check (room cleared)
+      if (this.roomManager.doorOpen && this.roomManager.doorAnim >= 1) {
+        const door = this.roomManager.getDoorRect(this.canvas.width);
+        if (this.player.x >= door.x && this.player.x <= door.x + door.w &&
+            this.player.y >= door.y && this.player.y <= door.y + door.h) {
+          this.roomManager.onPlayerReachDoor(this);
+          return;
+        }
+      }
+    } else {
+      // Survivor: spawner update
+      this.spawner.update(dt, this.enemies, this.player, (typeId, x, y) => {
+        const typeDef = getEnemyType(typeId);
+        if (!typeDef) return;
+        const e = new Enemy(x, y, typeDef);
+        this.enemies.push(e);
+        if (e.type === 'boss') {
+          this.currentBoss = e;
+          this.bossEntrance = { timer: 1.2, bossName: typeDef.name };
+        }
+      });
+      this._updateCamera(dt);
+      if (this.player.kills >= cfg.waves.victoryKills) {
+        this.triggerVictory();
+        return;
       }
     }
 
@@ -426,22 +473,41 @@ export class Game {
     this.pickups = this.pickups.filter(p => p.alive);
     this.barrels = this.barrels.filter(b => b.alive);
 
-    // Room clear check after deaths are processed
-    this.roomManager.onEnemyDeath(this.enemies);
+    if (this.mode === 'archero') {
+      // Room clear check after deaths are processed
+      this.roomManager.onEnemyDeath(this.enemies);
 
-    // Room-clear door particle burst (once)
-    if (this.roomManager.doorOpen && !this._doorBurstEmitted) {
-      this._doorBurstEmitted = true;
-      const door = this.roomManager.getDoorRect(this.canvas.width);
-      this.particles.emit(door.x + door.w / 2, door.y + door.h / 2, 20, '#ffdd44', {
-        speedMin: 50, speedMax: 150, sizeMin: 2, sizeMax: 6, lifetime: 0.8,
-      });
+      // Room-clear door particle burst (once)
+      if (this.roomManager.doorOpen && !this._doorBurstEmitted) {
+        this._doorBurstEmitted = true;
+        const door = this.roomManager.getDoorRect(this.canvas.width);
+        this.particles.emit(door.x + door.w / 2, door.y + door.h / 2, 20, '#ffdd44', {
+          speedMin: 50, speedMax: 150, sizeMin: 2, sizeMax: 6, lifetime: 0.8,
+        });
+      }
     }
 
     // Check player death
     if (!this.player.alive) {
       this.triggerGameOver();
     }
+  }
+
+  triggerVictory() {
+    this.state = 'victory';
+    this.meta.gold += Math.floor(this.runGold);
+    saveMeta(this.meta);
+  }
+
+  _updateCamera(dt) {
+    const cfg = getConfig();
+    const lerp = cfg.camera.lerp;
+    const cw = this.canvas.width;
+    const ch = this.canvas.height;
+    const targetX = Math.max(0, Math.min(cfg.map.width - cw, this.player.x - cw / 2));
+    const targetY = Math.max(0, Math.min(cfg.map.height - ch, this.player.y - ch / 2));
+    this.camera.x += (targetX - this.camera.x) * lerp;
+    this.camera.y += (targetY - this.camera.y) * lerp;
   }
 
   _checkBossPhase(boss) {
@@ -749,7 +815,27 @@ export class Game {
         this.state = 'config_editor';
         return;
       }
-      this.startGame();
+      // Mode buttons (archero / survivor) — match renderer layout
+      const modeBtnW = 160;
+      const modeBtnH = 50;
+      const modeGap = 20;
+      const modeTotalW = modeBtnW * 2 + modeGap;
+      const modeStartX = this.canvas.width / 2 - modeTotalW / 2;
+      const modeBtnY = Math.round(this.canvas.height * 0.38) + 200;
+
+      // Archero (left) button
+      if (screenX >= modeStartX && screenX <= modeStartX + modeBtnW &&
+          screenY >= modeBtnY && screenY <= modeBtnY + modeBtnH) {
+        this.startGame('archero');
+        return;
+      }
+      // Survivor (right) button
+      const survivorX = modeStartX + modeBtnW + modeGap;
+      if (screenX >= survivorX && screenX <= survivorX + modeBtnW &&
+          screenY >= modeBtnY && screenY <= modeBtnY + modeBtnH) {
+        this.startGame('survivor');
+        return;
+      }
       return;
     }
     if (this.state === 'config_editor') {
@@ -784,6 +870,10 @@ export class Game {
     }
     if (this.state === 'gameover') {
       this.restart();
+      return;
+    }
+    if (this.state === 'victory') {
+      this.state = 'menu';
       return;
     }
     if (this.state === 'chapterclear') {
