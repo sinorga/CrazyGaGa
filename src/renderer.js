@@ -286,6 +286,7 @@ export class Renderer {
   drawChests(chests, camera, elapsed) {
     const ctx = this.ctx;
     for (const chest of chests) {
+      if (chest.alive === false) continue;
       const sx = chest.x - camera.x;
       const sy = chest.y - camera.y;
       const pulse = Math.sin(elapsed * 3) * 1;
@@ -294,7 +295,14 @@ export class Renderer {
       ctx.font = `${Math.round(size)}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(chest.open ? '📭' : '📦', sx, sy);
+      ctx.fillText('📦', sx, sy);
+      // Subtle glow ring when not yet opened
+      ctx.globalAlpha = 0.3 + Math.sin(elapsed * 3) * 0.15;
+      ctx.strokeStyle = '#ffdd44';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(sx, sy, chest.radius + 6, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     }
   }

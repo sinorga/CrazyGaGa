@@ -454,18 +454,22 @@ export class Game {
       if (!chest.open) {
         const reward = chest.tryOpen(this.player);
         if (reward) {
+          chest.alive = false; // remove from view after opening
+          this.particles.emit(chest.x, chest.y, 20, '#ffdd44', { speedMax: 120, lifetime: 0.6 });
           if (reward.type === 'hp') {
             this.player.hp = Math.min(this.player.maxHp, this.player.hp + reward.value);
+            this.particles.emitText(chest.x, chest.y - 24, `+${reward.value} HP`, '#ff6680', { fontSize: 18, lifetime: 1.2 });
           } else if (reward.type === 'gold') {
             this.runGold += reward.value;
+            this.particles.emitText(chest.x, chest.y - 24, `+${reward.value}g`, '#ffdd44', { fontSize: 18, lifetime: 1.2 });
           } else if (reward.type === 'scroll') {
-            this.triggerRoomClear(); // use archero ability pool
+            this.triggerRoomClear(); // skill selection
             return;
           }
-          this.particles.emit(chest.x, chest.y, 15, '#ffdd44', { speedMax: 100, lifetime: 0.5 });
         }
       }
     }
+    this.chests = this.chests.filter(c => c.alive !== false);
 
     // Update barrels (just alive tracking; collisions handled below)
     // Barrels are static — no per-frame update needed

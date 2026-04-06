@@ -274,9 +274,10 @@ export const ENEMY_TYPES = [
     bossPhase: 3,
     phaseAt: 0.5,
     attacks: [
-      { type: 'fire_breath', damage: 20, coneAngle: 60, range: 200, cooldown: 4 },
-      { type: 'wing_gust', knockback: 250, cooldown: 6 },
-      { type: 'tail_sweep', damage: 25, radius: 120, cooldown: 5 },
+      { type: 'bullet_ring', count: 16, speed: 140, cooldown: 3 },
+      { type: 'charge', speed: 380, duration: 1.2, cooldown: 5 },
+      { type: 'bullet_spiral', count: 24, speed: 120, cooldown: 6 },
+      { type: 'teleport', cooldown: 8 },
     ],
   },
   {
