@@ -95,10 +95,13 @@ export class RoomManager {
 
     for (const { typeId, count } of wave.enemies) {
       for (let i = 0; i < count; i++) {
-        const pos = this._wallSpawnPos(game);
         // Import enemy type via game's accessor
         const typeDef = game._getEnemyType(typeId);
         if (!typeDef) continue;
+        // Bosses with large radii spawn at room center to avoid wall overlap
+        const pos = typeDef.type === 'boss'
+          ? this._centerSpawnPos(game, typeDef.radius || 30)
+          : this._wallSpawnPos(game);
         const enemy = new Enemy(pos.x, pos.y, typeDef);
         // Apply chapter difficulty scaling
         enemy.hp = Math.round(enemy.hp * scale);
@@ -109,6 +112,19 @@ export class RoomManager {
     }
 
     return spawned;
+  }
+
+  // Safe center-area spawn for large enemies (bosses)
+  _centerSpawnPos(game, radius) {
+    const cfg = getConfig();
+    const wall = cfg.room.wallThickness;
+    const cw = game.canvas.width;
+    const ch = game.canvas.height;
+    const safe = wall + radius + 20;
+    return {
+      x: safe + Math.random() * (cw - safe * 2),
+      y: safe + Math.random() * ((ch * 0.4) - safe), // upper half of room
+    };
   }
 
   // Spawn position: random point along one of 4 walls, at least 80px from corners

@@ -392,6 +392,14 @@ export class Game {
     // Update enemies
     const spawnedMinions = [];
     for (const enemy of this.enemies) {
+      // Provide canvas dimensions so enemy can clamp to room walls in archero mode
+      if (this.mode === 'archero') {
+        enemy._canvasW = this.canvas.width;
+        enemy._canvasH = this.canvas.height;
+      } else {
+        enemy._canvasW = null;
+        enemy._canvasH = null;
+      }
       if (enemy.type === 'boss') {
         updateBossAI(enemy, this.player, dt, this.enemyProjectiles, spawnedMinions);
         // Phase transition check
@@ -485,21 +493,14 @@ export class Game {
       this.roomManager.onEnemyDeath(this.enemies);
 
       if (this.roomManager.doorOpen && !wasDoorOpen) {
-        // Room just cleared — auto-collect all pickups
+        // Room just cleared — clear all projectiles and magnetically attract pickups
+        this.projectiles = [];
+        this.enemyProjectiles = [];
         for (const pickup of this.pickups) {
-          if (!pickup.alive) continue;
-          pickup.alive = false;
-          if (pickup.type === 'hp') {
-            this.player.hp = Math.min(this.player.maxHp, this.player.hp + pickup.hpValue);
-          } else {
-            this.player.addExp(pickup.value);
+          if (pickup.alive) {
+            pickup.attracted = true;
+            pickup.superMagnet = true;
           }
-        }
-        this.pickups = this.pickups.filter(p => p.alive);
-        // Level-up check after bulk exp
-        if (this.player.shouldLevelUp()) {
-          this.triggerLevelUp();
-          return;
         }
       }
 

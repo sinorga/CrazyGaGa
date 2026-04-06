@@ -6,8 +6,7 @@ export class Pickup {
     this.type = type; // 'gem' | 'hp'
     this.radius = 6;
     this.alive = true;
-    this.vx = 0;
-    this.vy = 0;
+    this.attracted = false; // once true, homes directly to player each frame
 
     if (type === 'hp') {
       this.hpValue = size === 'large' ? 40 : 20;
@@ -30,15 +29,18 @@ export class Pickup {
       return true;
     }
 
-    // Magnetic pull
-    if (dist < player.magnetRange && dist > 0) {
-      const pullSpeed = 300; // acceleration toward player
-      this.vx += (dx / dist) * pullSpeed * dt;
-      this.vy += (dy / dist) * pullSpeed * dt;
+    // Once within magnet range, permanently attracted — no losing the player
+    if (!this.attracted && dist < player.magnetRange) {
+      this.attracted = true;
     }
 
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
+    if (this.attracted && dist > 0) {
+      // Direct homing: move straight toward player at fixed speed (no velocity accumulation)
+      const speed = this.superMagnet ? 900 : 450;
+      const move = Math.min(speed * dt, dist);
+      this.x += (dx / dist) * move;
+      this.y += (dy / dist) * move;
+    }
 
     return false;
   }

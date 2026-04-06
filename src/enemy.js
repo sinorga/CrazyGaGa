@@ -1,4 +1,4 @@
-import { getEnemyType } from './gameConfig.js';
+import { getEnemyType, getConfig } from './gameConfig.js';
 
 export class Enemy {
   constructor(x, y, typeDef) {
@@ -70,6 +70,13 @@ export class Enemy {
     const behavior = behaviors[this.type];
     if (behavior) {
       behavior(this, playerPos, dt, enemyProjectiles, spawnedMinions, allEnemies);
+    }
+
+    // Clamp inside room walls (archero mode — canvas-based room)
+    if (this._canvasW && this._canvasH) {
+      const wall = getConfig().room?.wallThickness ?? 20;
+      this.x = Math.max(wall + this.radius, Math.min(this._canvasW - wall - this.radius, this.x));
+      this.y = Math.max(wall + this.radius, Math.min(this._canvasH - wall - this.radius, this.y));
     }
   }
 }
