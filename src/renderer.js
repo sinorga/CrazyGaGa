@@ -983,7 +983,7 @@ export class Renderer {
     // Subtitle
     ctx.fillStyle = '#aaaacc';
     ctx.font = '16px monospace';
-    ctx.fillText('Roguelite 割草生存', cx, anchorY - 20);
+    ctx.fillText('Dungeon Archer · Horde Survival', cx, anchorY - 20);
 
     // Selected character & gold
     if (meta) {
