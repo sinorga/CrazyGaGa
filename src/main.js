@@ -154,7 +154,10 @@ function render() {
 
   const cam = renderer.applyShake(game.camera);
   renderer.clear(cam);
-  renderer.drawMap(cam);
+  renderer.drawRoom(game.roomManager, cam);
+  renderer.drawDoor(game.roomManager, game.elapsed);
+  renderer.drawChests(game.chests, cam, game.elapsed);
+  renderer.drawBarrels(game.barrels, cam);
   renderer.drawPickups(game.pickups, cam, game.elapsed);
   renderer.drawEnemies(game.enemies, cam, game.elapsed);
   renderer.drawProjectiles(game.projectiles, cam);
@@ -165,9 +168,9 @@ function render() {
   renderer.drawDamageFlash();
   renderer.drawLevelUpFlash();
   renderer.drawHUD(game.player, game.elapsed, game.runGold, game.player.skillLevels);
+  renderer.drawChapterHUD(game.roomManager);
   if (game.currentBoss) {
     renderer.drawBossHPBar(game.currentBoss);
-    renderer.drawBossIndicator(game.currentBoss, cam);
   }
   if (game.bossEntrance) {
     renderer.drawBossEntrance(canvas, game.bossEntrance);
@@ -180,11 +183,14 @@ function render() {
   if (game.state === 'levelup') {
     renderer.drawLevelUpPanel(game.skillChoices, canvas);
   }
+  if (game.state === 'roomclear') {
+    renderer.drawRoomClearPanel(game.skillChoices, canvas);
+  }
+  if (game.state === 'chapterclear') {
+    renderer.drawChapterClear(canvas, game.chapterClearNum, game.runGold);
+  }
   if (game.state === 'gameover') {
     renderer.drawGameOver(game.player, game.elapsed, canvas, game.runGold);
-  }
-  if (game.state === 'victory') {
-    renderer.drawVictory(game.player, game.elapsed, canvas, game.runGold);
   }
   renderer.drawTransition();
 }

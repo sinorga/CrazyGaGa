@@ -169,6 +169,53 @@ export const ENEMY_TYPES = [
     },
   },
 
+  // --- NEW ENEMY TYPES ---
+  {
+    id: 'shielder',
+    name: '盾兵',
+    icon: '🛡️',
+    type: 'shielder',
+    radius: 16,
+    hp: 60,
+    speed: 45,
+    damage: 14,
+    color: '#4488cc',
+    exp: 4,
+    unlockTime: 0,
+    weight: 0, // spawned via room templates only
+    behavior: { shieldArc: 120 }, // degrees of frontal protection
+  },
+  {
+    id: 'healer',
+    name: '治療師',
+    icon: '💊',
+    type: 'healer',
+    radius: 13,
+    hp: 35,
+    speed: 35,
+    damage: 5,
+    color: '#44cc88',
+    exp: 5,
+    unlockTime: 0,
+    weight: 0,
+    behavior: { healRange: 150, healRate: 5 },
+  },
+  {
+    id: 'dasher',
+    name: '衝刺者',
+    icon: '💨',
+    type: 'dasher',
+    radius: 12,
+    hp: 25,
+    speed: 60,
+    damage: 18,
+    color: '#cc8844',
+    exp: 3,
+    unlockTime: 0,
+    weight: 0,
+    behavior: { dashSpeed: 400, dashInterval: 1.5 },
+  },
+
   // --- BOSSES ---
   {
     id: 'boss_demon',
@@ -184,6 +231,7 @@ export const ENEMY_TYPES = [
     unlockTime: 0, // controlled by bossPhase instead
     weight: 0, // bosses don't spawn randomly
     bossPhase: 1,
+    phaseAt: 0.5, // triggers phase 2 at 50% HP
     attacks: [
       { type: 'charge', speed: 200, duration: 1.0, cooldown: 5 },
       { type: 'bullet_ring', count: 12, speed: 120, cooldown: 3 },
@@ -203,10 +251,54 @@ export const ENEMY_TYPES = [
     unlockTime: 0,
     weight: 0,
     bossPhase: 2,
+    phaseAt: 0.5,
     attacks: [
       { type: 'summon', summonId: 'skeleton', count: 6, cooldown: 8 },
       { type: 'bullet_spiral', count: 20, speed: 100, cooldown: 4 },
       { type: 'teleport', cooldown: 6 },
+    ],
+  },
+  {
+    id: 'boss_dragon',
+    name: '冰龍王',
+    icon: '🐉',
+    type: 'boss',
+    radius: 45,
+    hp: 2000,
+    speed: 65,
+    damage: 35,
+    color: '#4488ff',
+    exp: 800,
+    unlockTime: 0,
+    weight: 0,
+    bossPhase: 3,
+    phaseAt: 0.5,
+    attacks: [
+      { type: 'fire_breath', damage: 20, coneAngle: 60, range: 200, cooldown: 4 },
+      { type: 'wing_gust', knockback: 250, cooldown: 6 },
+      { type: 'tail_sweep', damage: 25, radius: 120, cooldown: 5 },
+    ],
+  },
+  {
+    id: 'boss_lich_king',
+    name: '亡靈巫王',
+    icon: '💀',
+    type: 'boss',
+    radius: 38,
+    hp: 2500,
+    speed: 55,
+    damage: 28,
+    color: '#aa44ff',
+    exp: 1000,
+    unlockTime: 0,
+    weight: 0,
+    bossPhase: 4,
+    phaseAt: 0.5,
+    attacks: [
+      { type: 'ice_nova', count: 16, speed: 130, cooldown: 5 },
+      { type: 'summon', summonId: 'skeleton', count: 8, cooldown: 10 },
+      { type: 'teleport', cooldown: 4 },
+      { type: 'silence', duration: 2, cooldown: 8 }, // disables player shooting
     ],
   },
 ];

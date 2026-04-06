@@ -22,6 +22,13 @@ export class Player {
     this.cooldownMultiplier = 1;
     this.expBonusMultiplier = 1;
 
+    // Archero passive stats
+    this.thorns = 0;       // fraction of contact damage reflected back
+    this.vampire = 0;      // fraction of damage dealt as lifesteal
+    this.freezeChance = 0; // 0..1 probability to freeze on hit
+    this.poisonDps = 0;    // DPS applied to hit enemies
+    this.healOnKill = 0;   // HP recovered per kill
+
     // Pickup
     this.pickupRange = getConfig().player.pickupRange;
     this.magnetRange = getConfig().player.magnetRange;
@@ -47,7 +54,7 @@ export class Player {
     this.facingY = -1;
   }
 
-  move(direction, dt) {
+  move(direction, dt, canvasW, canvasH) {
     if (direction.x !== 0 || direction.y !== 0) {
       this.facingX = direction.x;
       this.facingY = direction.y;
@@ -56,9 +63,14 @@ export class Player {
     this.x += direction.x * this.speed * dt;
     this.y += direction.y * this.speed * dt;
 
-    // Clamp to map boundaries
-    this.x = Math.max(this.radius, Math.min(getConfig().map.width - this.radius, this.x));
-    this.y = Math.max(this.radius, Math.min(getConfig().map.height - this.radius, this.y));
+    // Clamp to room walls (or canvas if no room config)
+    const wall = getConfig().room?.wallThickness ?? 20;
+    const minX = wall + this.radius;
+    const minY = wall + this.radius;
+    const maxX = (canvasW ?? 800) - wall - this.radius;
+    const maxY = (canvasH ?? 600) - wall - this.radius;
+    this.x = Math.max(minX, Math.min(maxX, this.x));
+    this.y = Math.max(minY, Math.min(maxY, this.y));
   }
 
   takeDamage(amount) {
@@ -110,6 +122,21 @@ export class Player {
           break;
         case 'regen':
           this.regen += value;
+          break;
+        case 'thorns':
+          this.thorns += value;
+          break;
+        case 'vampire':
+          this.vampire += value;
+          break;
+        case 'freezeChance':
+          this.freezeChance = Math.min(1, this.freezeChance + value);
+          break;
+        case 'poisonDps':
+          this.poisonDps += value;
+          break;
+        case 'healOnKill':
+          this.healOnKill += value;
           break;
       }
     } else if (valueType === 'percent') {
@@ -189,5 +216,10 @@ export class Player {
     this.skillLevels = {};
     this.passiveStats = {};
     this._percentBonuses = {};
+    this.thorns = 0;
+    this.vampire = 0;
+    this.freezeChance = 0;
+    this.poisonDps = 0;
+    this.healOnKill = 0;
   }
 }

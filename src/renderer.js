@@ -32,35 +32,216 @@ export class Renderer {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  drawMap(camera) {
+  drawRoom(roomManager, camera) {
     const ctx = this.ctx;
-    const map = CONFIG.map;
-    const gs = map.gridSize;
+    const room = CONFIG.room;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const wall = room.wallThickness;
 
-    // Grid
-    ctx.strokeStyle = map.gridColor;
-    ctx.lineWidth = 1;
+    // Floor fill
+    ctx.fillStyle = room.floorColor;
+    ctx.fillRect(0, 0, w, h);
 
-    const startX = Math.floor(camera.x / gs) * gs;
-    const startY = Math.floor(camera.y / gs) * gs;
-    const endX = camera.x + this.canvas.width;
-    const endY = camera.y + this.canvas.height;
+    // 4 wall rectangles
+    ctx.fillStyle = room.wallColor;
+    ctx.fillRect(0, 0, w, wall);          // top
+    ctx.fillRect(0, h - wall, w, wall);   // bottom
+    ctx.fillRect(0, 0, wall, h);          // left
+    ctx.fillRect(w - wall, 0, wall, h);   // right
 
-    ctx.beginPath();
-    for (let x = startX; x <= endX; x += gs) {
-      ctx.moveTo(x - camera.x, 0);
-      ctx.lineTo(x - camera.x, this.canvas.height);
+    // Door gap in top wall (when door is open)
+    if (roomManager.doorOpen) {
+      const doorW = room.doorWidth;
+      const doorX = (w - doorW) / 2;
+      ctx.fillStyle = room.floorColor;
+      ctx.fillRect(doorX, 0, doorW, wall);
     }
-    for (let y = startY; y <= endY; y += gs) {
-      ctx.moveTo(0, y - camera.y);
-      ctx.lineTo(this.canvas.width, y - camera.y);
-    }
-    ctx.stroke();
+  }
 
-    // Border
-    ctx.strokeStyle = map.borderColor;
-    ctx.lineWidth = map.borderWidth;
-    ctx.strokeRect(-camera.x, -camera.y, map.width, map.height);
+  drawDoor(roomManager, elapsed) {
+    if (!roomManager.doorOpen) return;
+    const ctx = this.ctx;
+    const room = CONFIG.room;
+    const w = this.canvas.width;
+    const wall = room.wallThickness;
+    const doorW = room.doorWidth;
+    const doorH = room.doorHeight;
+    const doorX = (w - doorW) / 2;
+    const doorY = wall - doorH / 2;
+
+    const anim = roomManager.doorAnim;
+    const alpha = 0.4 + anim * 0.6;
+
+    // Door frame glow
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = room.doorColor;
+    ctx.fillRect(doorX, doorY, doorW, doorH);
+
+    // Shimmer effect
+    ctx.globalAlpha = alpha * (0.5 + Math.sin(elapsed * 4) * 0.3);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(doorX + 2, doorY + 2, doorW - 4, doorH - 4);
+    ctx.restore();
+
+    // Door label
+    if (anim >= 1) {
+      ctx.save();
+      ctx.fillStyle = '#ffdd44';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('GO →', w / 2, doorY + doorH / 2 + 5);
+      ctx.restore();
+    }
+  }
+
+  drawChapterHUD(roomManager) {
+    const ctx = this.ctx;
+    const chapter = roomManager.currentChapter;
+    if (!chapter) return;
+
+    const roomNum = roomManager.roomIndex + 1;
+    const totalRooms = chapter.rooms.length;
+    const cx = this.canvas.width / 2;
+
+    // Chapter / Room text (top-center, below time)
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`第${chapter.id}章 ${chapter.name}  房間 ${roomNum}/${totalRooms}`, cx, 75);
+
+    // Progress dots
+    const dotR = 4;
+    const dotGap = 12;
+    const totalDotsW = totalRooms * dotGap;
+    let dotX = cx - totalDotsW / 2;
+    const dotY = 88;
+
+    for (let i = 0; i < totalRooms; i++) {
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+      if (i < roomManager.roomIndex) {
+        ctx.fillStyle = '#ffdd44'; // completed
+      } else if (i === roomManager.roomIndex) {
+        ctx.fillStyle = '#ffffff'; // current
+      } else {
+        ctx.fillStyle = '#444466'; // pending
+      }
+      ctx.fill();
+      dotX += dotGap;
+    }
+  }
+
+  drawRoomClearPanel(skillChoices, canvas) {
+    const ctx = this.ctx;
+
+    // Overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title with gold border
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('選擇技能', canvas.width / 2, canvas.height * 0.15);
+
+    // Cards (same layout as level-up)
+    const count = skillChoices.length;
+    const gap = 10;
+    const cardW = Math.min(140, (canvas.width - gap * (count + 1)) / count);
+    const cardH = 120;
+    const totalW = count * cardW + (count - 1) * gap;
+    const startX = (canvas.width - totalW) / 2;
+    const cardY = canvas.height * 0.22;
+
+    for (let i = 0; i < count; i++) {
+      const skill = skillChoices[i];
+      const bx = startX + i * (cardW + gap);
+
+      ctx.fillStyle = '#1a1a3e';
+      ctx.fillRect(bx, cardY, cardW, cardH);
+      ctx.strokeStyle = '#ffdd44';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, cardY, cardW, cardH);
+
+      ctx.font = '28px serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(skill.icon, bx + cardW / 2, cardY + 35);
+
+      ctx.font = 'bold 12px monospace';
+      ctx.fillStyle = '#ffdd44';
+      ctx.fillText(skill.name, bx + cardW / 2, cardY + 58);
+
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#aaaacc';
+      const desc = skill.description;
+      if (desc.length > 10) {
+        ctx.fillText(desc.substring(0, 10), bx + cardW / 2, cardY + 78);
+        ctx.fillText(desc.substring(10), bx + cardW / 2, cardY + 93);
+      } else {
+        ctx.fillText(desc, bx + cardW / 2, cardY + 85);
+      }
+    }
+  }
+
+  drawChapterClear(canvas, chapterNum, runGold) {
+    const ctx = this.ctx;
+    const cx = canvas.width / 2;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = 'bold 36px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`第${chapterNum}章 通關！`, cx, canvas.height / 2 - 80);
+
+    ctx.fillStyle = '#44dd44';
+    ctx.font = '20px monospace';
+    ctx.fillText('恭喜！', cx, canvas.height / 2 - 40);
+
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = '18px monospace';
+    ctx.fillText(`獲得金幣: ${Math.floor(runGold || 0)}`, cx, canvas.height / 2 + 10);
+
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '16px monospace';
+    ctx.fillText('點擊返回主選單', cx, canvas.height / 2 + 70);
+  }
+
+  drawChests(chests, camera, elapsed) {
+    const ctx = this.ctx;
+    for (const chest of chests) {
+      const sx = chest.x - camera.x;
+      const sy = chest.y - camera.y;
+      const pulse = Math.sin(elapsed * 3) * 1;
+      const size = (chest.radius + pulse) * 2.2;
+      ctx.save();
+      ctx.font = `${Math.round(size)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(chest.open ? '📭' : '📦', sx, sy);
+      ctx.restore();
+    }
+  }
+
+  drawBarrels(barrels, camera) {
+    const ctx = this.ctx;
+    for (const barrel of barrels) {
+      if (!barrel.alive) continue;
+      const sx = barrel.x - camera.x;
+      const sy = barrel.y - camera.y;
+      const size = barrel.radius * 2.5;
+      ctx.save();
+      ctx.font = `${Math.round(size)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛢️', sx, sy);
+      ctx.restore();
+    }
   }
 
   drawPlayer(player, camera, elapsed = 0) {
@@ -136,6 +317,28 @@ export class Renderer {
         ctx.restore();
       }
 
+      // Frozen overlay
+      if (e.frozen > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = '#88ddff';
+        ctx.beginPath();
+        ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Poisoned overlay
+      if (e.poisoned > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#66ff44';
+        ctx.beginPath();
+        ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       // HP bar (only if damaged)
       if (e.hp < e.maxHp) {
         const barW = e.radius * 2.4;
@@ -194,7 +397,7 @@ export class Renderer {
       ctx.font = `${Math.round(size)}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('💎', sx, sy);
+      ctx.fillText(p.type === 'hp' ? (p.hpValue >= 40 ? '🧪' : '💗') : '💎', sx, sy);
       ctx.restore();
     }
   }

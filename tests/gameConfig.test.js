@@ -104,10 +104,10 @@ describe('setOverride — config fields', () => {
     expect(getConfig().player.speed).toBe(getConfigDefaults().player.speed);
   });
 
-  it('overrides wave config', () => {
-    setOverride('config', null, 'waves.maxEnemies', 200);
-    expect(getConfig().waves.maxEnemies).toBe(200);
-    expect(getConfig().waves.spawnInterval).toBe(getConfigDefaults().waves.spawnInterval);
+  it('overrides room config', () => {
+    setOverride('config', null, 'room.wallThickness', 40);
+    expect(getConfig().room.wallThickness).toBe(40);
+    expect(getConfig().room.doorWidth).toBe(getConfigDefaults().room.doorWidth);
   });
 });
 

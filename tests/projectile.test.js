@@ -43,11 +43,12 @@ describe('Projectile', () => {
     expect(p.alive).toBe(true);
   });
 
-  it('marks as dead when out of bounds', () => {
+  it('marks as dead when out of bounds (no bounces)', () => {
+    // bounces = -1 (depleted), so checkBounds kills it when out of range
+    proj.bounces = -1;
     proj.checkBounds(800, 600, { x: 0, y: 0 });
     expect(proj.alive).toBe(true); // still in view
 
-    // Move far away
     proj.x = 5000;
     proj.checkBounds(800, 600, { x: 0, y: 0 });
     expect(proj.alive).toBe(false);
@@ -58,5 +59,47 @@ describe('Projectile', () => {
     expect(proj.hasHit(enemyId)).toBe(false);
     proj.markHit(enemyId);
     expect(proj.hasHit(enemyId)).toBe(true);
+  });
+
+  describe('wall bounce', () => {
+    it('projectile with bounces=1 reflects off left wall and decrements bounces to 0', () => {
+      const p = new Projectile(30, 300, -1, 0, 200, {
+        damage: 5, radius: 5, pierce: 1, color: '#fff', bounces: 1,
+      });
+      p._canvasW = 800;
+      p._canvasH = 600;
+      // Move into left wall
+      p.x = 10; // inside wall (wall=20, min=25)
+      p._handleWallBounce([]);
+      expect(p.vx).toBeGreaterThan(0); // reflected
+      expect(p.bounces).toBe(0);
+      expect(p.alive).toBe(true);
+    });
+
+    it('projectile with bounces=0 dies on wall contact', () => {
+      const p = new Projectile(30, 300, -1, 0, 200, {
+        damage: 5, radius: 5, pierce: 1, color: '#fff', bounces: 0,
+      });
+      p._canvasW = 800;
+      p._canvasH = 600;
+      p.x = 10;
+      p._handleWallBounce([]);
+      expect(p.bounces).toBe(-1);
+      expect(p.alive).toBe(false);
+    });
+
+    it('reflects vx to positive when hitting left wall', () => {
+      const p = new Projectile(100, 300, -1, 0, 200, {
+        damage: 5, radius: 5, pierce: 1, color: '#fff', bounces: 2,
+      });
+      p._canvasW = 800;
+      p._canvasH = 600;
+      p.x = 10;
+      const origVy = p.vy;
+      p._handleWallBounce([]);
+      expect(p.vx).toBeGreaterThan(0);
+      expect(p.vy).toBe(origVy); // vy unchanged on left/right wall hit
+      expect(p.bounces).toBe(1);
+    });
   });
 });
