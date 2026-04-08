@@ -24,6 +24,55 @@ export class Renderer {
 
     // Screen transition
     this.transition = null; // { alpha, direction: 'in'|'out', speed, callback }
+
+    // Menu animation time
+    this.menuTime = 0;
+
+    // Animated starfield for menu/lobby screens
+    this.stars = Array.from({ length: 90 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: Math.random() * 1.4 + 0.3,
+      speed: Math.random() * 0.00018 + 0.00005,
+      alpha: Math.random() * 0.55 + 0.15,
+      twinkle: Math.random() * Math.PI * 2,
+    }));
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  // Draw a rounded-rectangle path (call fill/stroke after)
+  _roundRect(x, y, w, h, r) {
+    const ctx = this.ctx;
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  // Draw twinkling starfield (for menu backgrounds)
+  drawStarfield(canvas) {
+    const ctx = this.ctx;
+    for (const s of this.stars) {
+      const screenX = s.x * canvas.width;
+      const screenY = s.y * canvas.height;
+      const alpha = s.alpha * (0.55 + Math.sin(this.menuTime * 1.8 + s.twinkle) * 0.45);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, s.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   clear(camera) {
@@ -537,21 +586,44 @@ export class Renderer {
 
     const hpBarX = (this.canvas.width - ui.hpBarWidth) / 2;
     const hpBarY = 15;
-
-    // HP bar background
-    ctx.fillStyle = '#333333';
-    ctx.fillRect(hpBarX, hpBarY, ui.hpBarWidth, ui.hpBarHeight);
-
-    // HP bar fill
     const hpPercent = Math.max(0, player.hp / player.maxHp);
-    const hpColor = hpPercent > 0.5 ? '#44dd44' : hpPercent > 0.25 ? '#dddd44' : '#dd4444';
-    ctx.fillStyle = hpColor;
-    ctx.fillRect(hpBarX, hpBarY, ui.hpBarWidth * hpPercent, ui.hpBarHeight);
+
+    // HP bar — rounded background
+    ctx.save();
+    this._roundRect(hpBarX, hpBarY, ui.hpBarWidth, ui.hpBarHeight, 5);
+    ctx.fillStyle = '#1a1a2a';
+    ctx.fill();
+    ctx.restore();
+
+    // HP bar — gradient fill with low-HP red glow
+    if (hpPercent > 0) {
+      ctx.save();
+      const hpGrad = ctx.createLinearGradient(hpBarX, 0, hpBarX + ui.hpBarWidth, 0);
+      if (hpPercent > 0.5) {
+        hpGrad.addColorStop(0, '#1e8822');
+        hpGrad.addColorStop(1, '#44ee55');
+      } else if (hpPercent > 0.25) {
+        hpGrad.addColorStop(0, '#996600');
+        hpGrad.addColorStop(1, '#ffdd22');
+      } else {
+        hpGrad.addColorStop(0, '#881111');
+        hpGrad.addColorStop(1, '#ff4444');
+        ctx.shadowColor = '#ff2200';
+        ctx.shadowBlur = 10 + Math.sin(this.menuTime * 5) * 4;
+      }
+      this._roundRect(hpBarX, hpBarY, ui.hpBarWidth * hpPercent, ui.hpBarHeight, 5);
+      ctx.fillStyle = hpGrad;
+      ctx.fill();
+      ctx.restore();
+    }
 
     // HP bar border
-    ctx.strokeStyle = '#666';
+    ctx.save();
+    this._roundRect(hpBarX, hpBarY, ui.hpBarWidth, ui.hpBarHeight, 5);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(hpBarX, hpBarY, ui.hpBarWidth, ui.hpBarHeight);
+    ctx.stroke();
+    ctx.restore();
 
     // HP text
     ctx.fillStyle = '#ffffff';
@@ -559,33 +631,48 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.fillText(`${Math.ceil(player.hp)}/${player.maxHp}`, this.canvas.width / 2, hpBarY + ui.hpBarHeight - 3);
 
-    // EXP bar
+    // EXP bar — rounded with soft glow
     const expBarY = hpBarY + ui.hpBarHeight + 3;
-    ctx.fillStyle = '#222';
-    ctx.fillRect(hpBarX, expBarY, ui.hpBarWidth, ui.expBarHeight);
+    ctx.save();
+    this._roundRect(hpBarX, expBarY, ui.hpBarWidth, ui.expBarHeight, 3);
+    ctx.fillStyle = '#111122';
+    ctx.fill();
     const expPercent = player.exp / player.expToNextLevel();
-    ctx.fillStyle = '#6688ff';
-    ctx.fillRect(hpBarX, expBarY, ui.hpBarWidth * Math.min(1, expPercent), ui.expBarHeight);
+    if (expPercent > 0) {
+      this._roundRect(hpBarX, expBarY, ui.hpBarWidth * Math.min(1, expPercent), ui.expBarHeight, 3);
+      ctx.fillStyle = '#5577ff';
+      ctx.shadowColor = '#4466ff';
+      ctx.shadowBlur = 6;
+      ctx.fill();
+    }
+    ctx.restore();
 
-    // Level (top-left)
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Lv.${player.level}`, 10, 28);
+    // Level badge (top-left)
+    ctx.save();
+    this._roundRect(6, 10, 46, 22, 5);
+    ctx.fillStyle = 'rgba(30,30,70,0.75)';
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#ccddff';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Lv.${player.level}`, 29, 25);
 
     // Timer (top-center, above HP bar)
     const mins = Math.floor(elapsed / 60);
     const secs = Math.floor(elapsed % 60);
+    ctx.fillStyle = '#aabbcc';
+    ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, this.canvas.width / 2, 12);
 
-    // Kill count & Gold (top-left, below level)
+    // Kill count & Gold (top-left, below level badge)
     ctx.textAlign = 'left';
     ctx.font = '12px monospace';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(`Kills: ${player.kills}`, 10, 46);
+    ctx.fillStyle = '#ccccdd';
+    ctx.fillText(`☠ ${player.kills}`, 10, 48);
     ctx.fillStyle = '#ffdd44';
-    ctx.fillText(`Gold: ${Math.floor(runGold || 0)}`, 10, 62);
+    ctx.fillText(`✦ ${Math.floor(runGold || 0)}`, 10, 64);
 
     // Acquired skills display (below kills/gold, wrapping to multiple rows)
     if (skillLevels) {
@@ -781,6 +868,15 @@ export class Renderer {
   }
 
   updateEffects(dt) {
+    // Advance menu animation clock
+    this.menuTime += dt;
+
+    // Drift stars slowly downward
+    for (const s of this.stars) {
+      s.y += s.speed;
+      if (s.y > 1) s.y = 0;
+    }
+
     // Decay shake
     if (this.shakeIntensity > 0) {
       this.shakeOffsetX = (Math.random() - 0.5) * 2 * this.shakeIntensity;
@@ -1011,19 +1107,39 @@ export class Renderer {
     // rather than dead-center, which leaves too much empty space on tall phones.
     const anchorY = Math.round(canvas.height * 0.38);
 
+    // Background
     ctx.fillStyle = CONFIG.canvas.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Title
-    ctx.fillStyle = '#00d4ff';
+    // Animated starfield
+    this.drawStarfield(canvas);
+
+    // Subtle radial vignette from center-top for depth
+    const vign = ctx.createRadialGradient(cx, 0, 0, cx, canvas.height * 0.5, canvas.height * 0.85);
+    vign.addColorStop(0, 'rgba(0,100,180,0.12)');
+    vign.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = vign;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title — gradient text with glow
+    ctx.save();
+    const titleGrad = ctx.createLinearGradient(cx - 160, 0, cx + 160, 0);
+    titleGrad.addColorStop(0, '#00aaff');
+    titleGrad.addColorStop(0.45, '#00ffee');
+    titleGrad.addColorStop(1, '#aa66ff');
     ctx.font = 'bold 42px monospace';
     ctx.textAlign = 'center';
+    ctx.shadowColor = '#00d4ff';
+    ctx.shadowBlur = 24 + Math.sin(this.menuTime * 2) * 6;
+    ctx.fillStyle = titleGrad;
     ctx.fillText('CrazyGaGa', cx, anchorY - 60);
+    ctx.restore();
 
     // Subtitle
-    ctx.fillStyle = '#aaaacc';
-    ctx.font = '16px monospace';
-    ctx.fillText('Dungeon Archer · Horde Survival', cx, anchorY - 20);
+    ctx.fillStyle = '#8899bb';
+    ctx.font = '15px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Dungeon Archer · Horde Survival', cx, anchorY - 24);
 
     // Selected character & gold
     if (meta) {
@@ -1037,37 +1153,12 @@ export class Renderer {
       }
     }
 
-    // Mode buttons
-    const modeBtnW = 160;
-    const modeBtnH = 50;
-    const modeGap = 20;
-    const modeTotalW = modeBtnW * 2 + modeGap;
-    const modeStartX = cx - modeTotalW / 2;
-    const modeBtnY = anchorY + 200;
-
-    const modeButtons = [
-      { label: '🏹 地城模式', color: '#003366', border: '#00aaff' },
-      { label: '⚔️ 生存模式', color: '#332200', border: '#ffaa00' },
-    ];
-    for (let i = 0; i < 2; i++) {
-      const bx = modeStartX + i * (modeBtnW + modeGap);
-      ctx.fillStyle = modeButtons[i].color;
-      ctx.fillRect(bx, modeBtnY, modeBtnW, modeBtnH);
-      ctx.strokeStyle = modeButtons[i].border;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(bx, modeBtnY, modeBtnW, modeBtnH);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '15px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(modeButtons[i].label, bx + modeBtnW / 2, modeBtnY + 32);
-    }
-
-    // Controls
-    ctx.fillStyle = '#666688';
+    // Controls hint
+    ctx.fillStyle = '#555577';
     ctx.font = '13px monospace';
     ctx.fillText('WASD / 虛擬搖桿 移動', cx, anchorY + 100);
 
-    // Row of 3 buttons: 商店, 角色, 設定
+    // Row of 3 utility buttons: 商店, 角色, 設定
     const btnW = 90;
     const btnH = 40;
     const gap = 15;
@@ -1078,23 +1169,58 @@ export class Renderer {
 
     for (let i = 0; i < 3; i++) {
       const bx = startX + i * (btnW + gap);
-      ctx.fillStyle = '#2a2a4e';
-      ctx.fillRect(bx, btnY, btnW, btnH);
-      ctx.strokeStyle = '#6666aa';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(bx, btnY, btnW, btnH);
-      ctx.fillStyle = '#aaaacc';
-      ctx.font = '16px monospace';
+      ctx.save();
+      this._roundRect(bx, btnY, btnW, btnH, 7);
+      ctx.fillStyle = '#252550';
+      ctx.fill();
+      ctx.strokeStyle = '#5566aa';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#aabbdd';
+      ctx.font = '15px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(labels[i], bx + btnW / 2, btnY + 26);
     }
 
+    // Mode buttons — larger, with glow borders
+    const modeBtnW = 160;
+    const modeBtnH = 52;
+    const modeGap = 20;
+    const modeTotalW = modeBtnW * 2 + modeGap;
+    const modeStartX = cx - modeTotalW / 2;
+    const modeBtnY = anchorY + 200;
+
+    const modeButtons = [
+      { label: '🏹 地城模式', fill: '#06213f', border: '#00aaff', glow: '#00aaff' },
+      { label: '⚔️ 生存模式', fill: '#2e1800', border: '#ffaa00', glow: '#ffaa00' },
+    ];
+    for (let i = 0; i < 2; i++) {
+      const bx = modeStartX + i * (modeBtnW + modeGap);
+      // Fill
+      ctx.save();
+      this._roundRect(bx, modeBtnY, modeBtnW, modeBtnH, 10);
+      ctx.fillStyle = modeButtons[i].fill;
+      ctx.fill();
+      // Glowing border
+      ctx.shadowColor = modeButtons[i].glow;
+      ctx.shadowBlur = 14 + Math.sin(this.menuTime * 2.5 + i * Math.PI) * 4;
+      this._roundRect(bx, modeBtnY, modeBtnW, modeBtnH, 10);
+      ctx.strokeStyle = modeButtons[i].border;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 15px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(modeButtons[i].label, bx + modeBtnW / 2, modeBtnY + 33);
+    }
+
     // Version — bottom-left
-    ctx.fillStyle = '#6666aa';
+    ctx.fillStyle = '#444466';
     ctx.font = '12px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(`v${VERSION}`, 12, canvas.height - 10);
-
   }
 
   drawChapterSelect(canvas, meta, chapters) {
