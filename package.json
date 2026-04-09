@@ -19,7 +19,7 @@
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.0",
     "@stryker-mutator/vitest-runner": "^9.6.0",
-    "jsdom": "^29.0.1",
-    "vitest": "^4.1.2"
+    "jsdom": "^29.0.2",
+    "vitest": "^4.1.4"
   }
 }
