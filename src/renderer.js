@@ -1575,49 +1575,11 @@ export class Renderer {
         ctx.restore();
       }
 
-      // Poisoned overlay — animated toxic cloud + rising bubbles
+      // Poisoned — volumetric toxic smoke cloud
       if (e.poisoned > 0) {
-        const intensity = Math.min(1, e.poisoned * 0.35);
+        const intensity = Math.min(1, e.poisoned * 0.4);
         const t = this.menuTime;
-        ctx.save();
-
-        // Swirling poison aura
-        ctx.shadowColor = '#44ff22';
-        ctx.shadowBlur = 12;
-        ctx.globalAlpha = intensity * 0.45;
-        ctx.strokeStyle = '#66ff44';
-        ctx.lineWidth = 2;
-        for (let ring = 0; ring < 2; ring++) {
-          const spinOffset = ring === 0 ? t * 2.2 : -t * 1.8;
-          const rOff = r + 3 + ring * 4;
-          ctx.beginPath();
-          ctx.arc(sx, sy, rOff, spinOffset, spinOffset + Math.PI * 1.4);
-          ctx.stroke();
-        }
-
-        // Rising poison bubbles
-        ctx.shadowBlur = 6;
-        for (let b = 0; b < 4; b++) {
-          const phase = (t * 1.8 + b * 0.7) % 1;
-          const bx = sx + Math.sin(t * 2 + b * 1.5) * r * 0.6;
-          const by = sy - r - phase * r * 1.6;
-          const br = (1 - phase) * r * 0.28;
-          ctx.globalAlpha = intensity * (1 - phase) * 0.7;
-          ctx.fillStyle = '#88ff44';
-          ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
-          // Bubble highlight
-          ctx.globalAlpha = intensity * (1 - phase) * 0.4;
-          ctx.fillStyle = '#ccffaa';
-          ctx.beginPath(); ctx.arc(bx - br * 0.25, by - br * 0.25, br * 0.35, 0, Math.PI * 2); ctx.fill();
-        }
-
-        // Green body tint
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = intensity * 0.25;
-        ctx.fillStyle = '#44ff22';
-        ctx.beginPath(); ctx.arc(sx, sy, r + 2, 0, Math.PI * 2); ctx.fill();
-
-        ctx.restore();
+        this._drawPoisonSmoke(ctx, sx, sy, r, intensity, t);
       }
 
       // HP bar (only if damaged)
@@ -1864,65 +1826,198 @@ export class Renderer {
     }
   }
 
-  // ── Fire circle animated effect ─────────────────────────────────────────
+  // ── Poison smoke — volumetric billowing cloud ───────────────────────────
+  _drawPoisonSmoke(ctx, cx, cy, r, intensity, t) {
+    ctx.save();
+
+    // 10 overlapping smoke puffs, staggered in lifecycle phase
+    // Each puff: born near enemy body, drifts up & outward, expands & fades
+    const puffCount = 10;
+    for (let i = 0; i < puffCount; i++) {
+      // Stagger start phases so puffs are always at different lifecycle stages
+      const phase = (t * (0.28 + (i % 5) * 0.04) + i / puffCount) % 1;
+
+      // Birth position: slightly randomised around enemy centre
+      const birthAngle = i * 2.39996; // golden angle → good spread
+      const birthR = r * 0.45 * ((i % 3) / 3);
+      const startX = cx + Math.cos(birthAngle) * birthR;
+      const startY = cy - r * 0.2 + Math.sin(birthAngle) * birthR * 0.5;
+
+      // As phase advances: drift upward, sway sideways, expand
+      const rise   = phase * r * 2.8;
+      const sway   = Math.sin(t * 1.4 + i * 1.7) * r * 0.38 * phase;
+      const puffX  = startX + sway;
+      const puffY  = startY - rise;
+
+      // Puff radius grows as it rises (billowing effect)
+      const puffR  = r * (0.32 + phase * 0.85);
+
+      // Alpha: fade in quickly, linger, then fade out near end
+      const alphaCurve = phase < 0.15
+        ? phase / 0.15                      // ramp in
+        : phase > 0.65
+        ? 1 - (phase - 0.65) / 0.35        // ramp out
+        : 1;
+      const alpha = intensity * alphaCurve * 0.42;
+      if (alpha < 0.015) continue;
+
+      // Colour: dark toxic green-grey with a hint of yellow
+      // Older puffs (higher phase) become more grey and transparent
+      const greenness = Math.round(140 + (1 - phase) * 50);
+      const redness   = Math.round(20  + (1 - phase) * 30);
+
+      const g = ctx.createRadialGradient(
+        puffX - puffR * 0.22, puffY - puffR * 0.18, 0,
+        puffX, puffY, puffR
+      );
+      g.addColorStop(0,   `rgba(${redness},${greenness},${redness * 0.3 | 0},${alpha * 1.1})`);
+      g.addColorStop(0.45,`rgba(${redness - 8},${greenness - 30},${redness * 0.2 | 0},${alpha * 0.75})`);
+      g.addColorStop(1,   `rgba(10,40,5,0)`);
+
+      ctx.fillStyle = g;
+      ctx.shadowColor = `rgb(30,${greenness - 40},10)`;
+      ctx.shadowBlur = puffR * 0.35;
+      ctx.beginPath(); ctx.arc(puffX, puffY, puffR, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Wispy tendrils — thin curling strands rising from the smoke
+    ctx.shadowBlur = 0;
+    for (let i = 0; i < 5; i++) {
+      const phase = (t * 0.32 + i * 0.21) % 1;
+      const alpha = intensity * (1 - phase) * 0.22;
+      if (alpha < 0.02) continue;
+      const wx = cx + Math.sin(i * 1.9 + t * 0.7) * r * 0.55;
+      const wy = cy - r * 0.3 - phase * r * 2.2;
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = `rgba(60,180,30,1)`;
+      ctx.lineWidth = Math.max(1, r * 0.08 * (1 - phase));
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(wx, wy + r * 0.3);
+      ctx.bezierCurveTo(
+        wx + Math.sin(t + i) * r * 0.2, wy,
+        wx - Math.sin(t * 1.3 + i) * r * 0.25, wy - r * 0.35,
+        wx + Math.sin(t * 0.8 + i * 2) * r * 0.15, wy - r * 0.6
+      );
+      ctx.stroke();
+    }
+
+    // Subtle green body tint on the enemy itself
+    ctx.globalAlpha = intensity * 0.18;
+    ctx.fillStyle = '#33cc22';
+    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(cx, cy, r + 1, 0, Math.PI * 2); ctx.fill();
+
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // ── Fire circle — full procedural flame simulation ──────────────────────
   _drawFireCircleEffect(sx, sy, r, fade, t) {
     const ctx = this.ctx;
     ctx.save();
     ctx.translate(sx, sy);
 
-    // Ground scorch (dark ring)
-    ctx.globalAlpha = fade * 0.55;
-    ctx.fillStyle = '#220800';
-    ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
+    // Ground scorch — dark charred ellipse
+    const scorch = ctx.createRadialGradient(0, r * 0.05, 0, 0, r * 0.05, r);
+    scorch.addColorStop(0,   `rgba(15,4,0,${fade * 0.92})`);
+    scorch.addColorStop(0.55,`rgba(8,2,0,${fade * 0.6})`);
+    scorch.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = scorch;
+    ctx.beginPath(); ctx.ellipse(0, r * 0.05, r, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
 
-    // Radial heat distortion ring
-    ctx.shadowColor = '#ff4400';
-    ctx.shadowBlur = 22;
-    ctx.strokeStyle = `rgba(255,100,0,${fade * 0.6})`;
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+    // Hot ember bed — white-yellow glowing base
+    const bed = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.85);
+    bed.addColorStop(0,    `rgba(255,245,200,${fade * 0.75})`);
+    bed.addColorStop(0.25, `rgba(255,180,30,${fade * 0.55})`);
+    bed.addColorStop(0.6,  `rgba(255,60,0,${fade * 0.3})`);
+    bed.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 28;
+    ctx.fillStyle = bed;
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.85, r * 0.28, 0, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Animated flame tongues around the perimeter
-    const flameCount = 10;
-    for (let i = 0; i < flameCount; i++) {
-      const baseAngle = (i / flameCount) * Math.PI * 2;
-      const wobble = Math.sin(t * 6 + i * 1.3) * 0.22;
-      const a = baseAngle + wobble;
-      const flameH = r * (0.55 + Math.sin(t * 5 + i * 2.1) * 0.22);
-      const baseW = r * 0.22;
+    // ── Individual flame tongues filling the area ──
+    // Two passes: large base flames, then smaller flickering tips
+    const passes = [
+      { count: 22, hMin: 0.65, hMax: 1.15, wBase: 0.18, speedMul: 1.0, bright: 0.9 },
+      { count: 14, hMin: 0.35, hMax: 0.65, wBase: 0.10, speedMul: 1.6, bright: 1.0 },
+    ];
 
-      ctx.save();
-      ctx.rotate(a);
-      ctx.translate(r * 0.72, 0);
-      ctx.rotate(Math.PI / 2); // point up
+    for (const pass of passes) {
+      for (let i = 0; i < pass.count; i++) {
+        // Distribute flame bases across the circle area using golden angle
+        const angle = i * 2.39996; // golden angle spread
+        const dist  = r * Math.sqrt((i + 0.5) / pass.count); // uniform area distribution
+        const bx    = Math.cos(angle) * dist;
+        const groundY = Math.sin(angle) * dist * 0.32; // perspective flatten
 
-      const fg = ctx.createLinearGradient(0, 0, 0, -flameH);
-      fg.addColorStop(0, `rgba(255,60,0,${fade * 0.9})`);
-      fg.addColorStop(0.4, `rgba(255,160,0,${fade * 0.75})`);
-      fg.addColorStop(1, `rgba(255,240,60,0)`);
-      ctx.fillStyle = fg;
-      ctx.shadowColor = '#ff6600';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.bezierCurveTo(-baseW * 0.6, -flameH * 0.3, -baseW * 0.3, -flameH * 0.7, 0, -flameH);
-      ctx.bezierCurveTo(baseW * 0.3, -flameH * 0.7, baseW * 0.6, -flameH * 0.3, 0, 0);
-      ctx.fill();
-      ctx.restore();
+        // Per-flame flicker frequencies (all different to avoid sync)
+        const freq1 = 3.7 + (i % 5) * 0.53;
+        const freq2 = 5.1 + (i % 7) * 0.39;
+        const phase = i * 0.97;
+
+        // Height flicker
+        const hFrac = pass.hMin + (pass.hMax - pass.hMin) *
+          (0.5 + Math.sin(t * freq1 + phase) * 0.3 + Math.sin(t * freq2 * 0.6 + phase * 1.4) * 0.2);
+        const h = r * hFrac;
+
+        // Lean (wind-like drift)
+        const lean = Math.sin(t * 2.1 + phase * 1.3) * r * 0.15
+                   + Math.sin(t * 0.7 + phase) * r * 0.08;
+
+        // Base width
+        const bw = r * (pass.wBase + Math.sin(phase * 2.1) * 0.04);
+
+        // Color: hotter = whiter core
+        const coreAlpha = fade * pass.bright * (0.85 + Math.sin(t * freq1 + phase) * 0.15);
+        const fg = ctx.createLinearGradient(bx, groundY, bx + lean, groundY - h);
+        fg.addColorStop(0,    `rgba(255,250,180,${coreAlpha})`);
+        fg.addColorStop(0.15, `rgba(255,200,40,${coreAlpha * 0.95})`);
+        fg.addColorStop(0.4,  `rgba(255,90,5,${coreAlpha * 0.8})`);
+        fg.addColorStop(0.72, `rgba(200,20,0,${coreAlpha * 0.45})`);
+        fg.addColorStop(1,    'rgba(80,0,0,0)');
+        ctx.fillStyle = fg;
+        ctx.shadowColor = '#ff5500'; ctx.shadowBlur = 10;
+
+        // Flame shape: wide bezier base tapering to point
+        ctx.beginPath();
+        ctx.moveTo(bx - bw, groundY);
+        ctx.bezierCurveTo(
+          bx - bw * 0.5 + lean * 0.2, groundY - h * 0.35,
+          bx + lean * 0.6,             groundY - h * 0.75,
+          bx + lean,                   groundY - h
+        );
+        ctx.bezierCurveTo(
+          bx + lean + bw * 0.15,       groundY - h * 0.75,
+          bx + bw * 0.5 + lean * 0.2,  groundY - h * 0.35,
+          bx + bw,                     groundY
+        );
+        ctx.fill();
+      }
     }
 
-    // Inner fire pool
-    const poolG = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.75);
-    poolG.addColorStop(0, `rgba(255,220,60,${fade * 0.65})`);
-    poolG.addColorStop(0.5, `rgba(255,80,0,${fade * 0.45})`);
-    poolG.addColorStop(1, `rgba(200,30,0,0)`);
-    ctx.shadowColor = '#ff4400';
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = poolG;
-    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.75, r * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+    // Floating embers — small sparks that drift upward and fade
+    ctx.shadowBlur = 0;
+    for (let i = 0; i < 18; i++) {
+      // Phase drives lifecycle: 0=just born, 1=gone
+      const speed = 0.55 + (i % 5) * 0.08;
+      const phase = (t * speed + i * 0.318) % 1;
+      const angle = i * 2.39996 + t * 0.4;
+      const startR = r * ((i % 9) / 9 * 0.75);
+      const ex = Math.cos(angle) * startR + Math.sin(t * 2.1 + i) * r * 0.08;
+      const ey = Math.sin(angle) * startR * 0.3 - phase * r * 1.8;
+      const er = (1.8 - phase * 1.4) * (1 + (i % 3) * 0.5);
 
+      if (er < 0.4 || phase > 0.88) continue;
+      const emberAlpha = fade * (1 - phase) * 0.9;
+      ctx.globalAlpha = emberAlpha;
+      ctx.fillStyle = phase < 0.4 ? '#ffffc0' : phase < 0.7 ? '#ffaa22' : '#ff4400';
+      ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
     ctx.restore();
   }
 
