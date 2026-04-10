@@ -3363,9 +3363,9 @@ export class Renderer {
     ctx.fillStyle = CONFIG.canvas.backgroundColor;
     ctx.fillRect(0, 0, W, H);
 
-    // ── Tab bar (7 tabs) ──
-    const TABS = ['settings', 'global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
-    const TAB_LABELS = { settings:'調整', global:'全域', enemies:'敵人', weapons:'武器', passives:'技能', characters:'角色', upgrades:'升級' };
+    // ── Tab bar (6 tabs) ──
+    const TABS = ['global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
+    const TAB_LABELS = { global:'全域', enemies:'敵人', weapons:'武器', passives:'技能', characters:'角色', upgrades:'升級' };
     const tabW = W / TABS.length;
     for (let i = 0; i < TABS.length; i++) {
       const tx = i * tabW;

@@ -9,9 +9,9 @@ import {
 } from './gameConfig.js';
 import { SETTINGS_DEFS, loadSettings, saveSettings, resetSettings, getDefaults, applyUserSettings } from './settings.js';
 
-export const TABS = ['settings', 'global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
+export const TABS = ['global', 'enemies', 'weapons', 'passives', 'characters', 'upgrades'];
 export const TAB_LABELS = {
-  settings: '調整', global: '全域', enemies: '敵人', weapons: '武器',
+  global: '全域', enemies: '敵人', weapons: '武器',
   passives: '技能', characters: '角色', upgrades: '升級',
 };
 
@@ -27,7 +27,7 @@ const SETTINGS_CONTENT_Y = TAB_BAR_H + 10;
 
 export function createConfigEditorState() {
   const state = {
-    activeTab: 'settings',
+    activeTab: 'global',
     scrollY: 0,
     fields: [],
     _inputEl: null,
@@ -138,6 +138,16 @@ function buildWeaponFields() {
           label: `config.${ck}`, value: cv, defaultValue: def.config?.[ck],
           section: 'weapons', id: w.id, path: `config.${ck}`,
           isModified: cv !== def.config?.[ck],
+        });
+      }
+    }
+    if (w.levelScaling && typeof w.levelScaling === 'object') {
+      for (const [lk, lv] of Object.entries(w.levelScaling)) {
+        if (typeof lv !== 'number') continue;
+        fields.push({
+          label: `levelScaling.${lk}`, value: lv, defaultValue: def.levelScaling?.[lk],
+          section: 'weapons', id: w.id, path: `levelScaling.${lk}`,
+          isModified: lv !== def.levelScaling?.[lk],
         });
       }
     }
