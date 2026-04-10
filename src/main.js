@@ -169,9 +169,9 @@ function render() {
   }
   renderer.drawPickups(game.pickups, cam, game.elapsed);
   renderer.drawEnemies(game.enemies, cam, game.elapsed);
-  renderer.drawProjectiles(game.projectiles, cam);
+  renderer.drawProjectiles(game.projectiles, cam, game.elapsed);
   renderer.drawEnemyProjectiles(game.enemyProjectiles, cam);
-  renderer.drawOrbitWeapons(game.weaponManager.weapons, cam);
+  renderer.drawOrbitWeapons(game.weaponManager.weapons, cam, game.elapsed);
   game.particles.render(ctx, cam);
   renderer.drawPlayer(game.player, cam, game.elapsed);
   renderer.drawDamageFlash();

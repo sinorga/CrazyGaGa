@@ -1575,14 +1575,48 @@ export class Renderer {
         ctx.restore();
       }
 
-      // Poisoned overlay — green tinge
+      // Poisoned overlay — animated toxic cloud + rising bubbles
       if (e.poisoned > 0) {
+        const intensity = Math.min(1, e.poisoned * 0.35);
+        const t = this.menuTime;
         ctx.save();
-        ctx.globalAlpha = Math.min(0.35, e.poisoned * 0.2);
-        ctx.fillStyle = '#66ff44';
-        ctx.beginPath();
-        ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
-        ctx.fill();
+
+        // Swirling poison aura
+        ctx.shadowColor = '#44ff22';
+        ctx.shadowBlur = 12;
+        ctx.globalAlpha = intensity * 0.45;
+        ctx.strokeStyle = '#66ff44';
+        ctx.lineWidth = 2;
+        for (let ring = 0; ring < 2; ring++) {
+          const spinOffset = ring === 0 ? t * 2.2 : -t * 1.8;
+          const rOff = r + 3 + ring * 4;
+          ctx.beginPath();
+          ctx.arc(sx, sy, rOff, spinOffset, spinOffset + Math.PI * 1.4);
+          ctx.stroke();
+        }
+
+        // Rising poison bubbles
+        ctx.shadowBlur = 6;
+        for (let b = 0; b < 4; b++) {
+          const phase = (t * 1.8 + b * 0.7) % 1;
+          const bx = sx + Math.sin(t * 2 + b * 1.5) * r * 0.6;
+          const by = sy - r - phase * r * 1.6;
+          const br = (1 - phase) * r * 0.28;
+          ctx.globalAlpha = intensity * (1 - phase) * 0.7;
+          ctx.fillStyle = '#88ff44';
+          ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+          // Bubble highlight
+          ctx.globalAlpha = intensity * (1 - phase) * 0.4;
+          ctx.fillStyle = '#ccffaa';
+          ctx.beginPath(); ctx.arc(bx - br * 0.25, by - br * 0.25, br * 0.35, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Green body tint
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = intensity * 0.25;
+        ctx.fillStyle = '#44ff22';
+        ctx.beginPath(); ctx.arc(sx, sy, r + 2, 0, Math.PI * 2); ctx.fill();
+
         ctx.restore();
       }
 
@@ -1599,25 +1633,81 @@ export class Renderer {
     }
   }
 
-  drawProjectiles(projectiles, camera) {
+  drawProjectiles(projectiles, camera, elapsed = 0) {
     const ctx = this.ctx;
+    const t = this.menuTime;
+
     for (const p of projectiles) {
       if (!p.alive) continue;
       const sx = p.x - camera.x;
       const sy = p.y - camera.y;
 
-      ctx.save();
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 8;
-      // Gradient sphere for projectile
-      const g = ctx.createRadialGradient(sx - p.radius * 0.3, sy - p.radius * 0.3, 0, sx, sy, p.radius);
-      g.addColorStop(0, this._lightenColor(p.color, 0.6));
-      g.addColorStop(1, p.color);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      if (p.isBoomerang) {
+        // ── Animated boomerang ──────────────────────────────────────────────
+        const r = p.radius;
+        const spin = t * 14; // fast spin
+        const travelAngle = Math.atan2(p.vy || 0, p.vx || 0);
+
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(travelAngle + spin);
+
+        // Motion trail (3 fading ghost copies)
+        for (let i = 1; i <= 3; i++) {
+          ctx.save();
+          ctx.globalAlpha = 0.18 - i * 0.04;
+          ctx.rotate(-i * 0.45);
+          ctx.scale(1 - i * 0.1, 1 - i * 0.1);
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.moveTo(-r * 1.6, 0);
+          ctx.quadraticCurveTo(0, -r * 1.2, r * 1.6, 0);
+          ctx.quadraticCurveTo(0, r * 0.5, -r * 1.6, 0);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Boomerang wing shape
+        const bColor = p.color;
+        const bGrad = ctx.createLinearGradient(-r * 1.6, -r * 0.4, r * 1.6, r * 0.4);
+        bGrad.addColorStop(0, this._lightenColor(bColor, 0.5));
+        bGrad.addColorStop(0.5, bColor);
+        bGrad.addColorStop(1, this._lightenColor(bColor, 0.5));
+        ctx.fillStyle = bGrad;
+        ctx.shadowColor = bColor;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.moveTo(-r * 1.6, 0);
+        ctx.quadraticCurveTo(0, -r * 1.2, r * 1.6, 0);
+        ctx.quadraticCurveTo(0, r * 0.5, -r * 1.6, 0);
+        ctx.fill();
+
+        // Rim highlight
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = Math.max(1, r * 0.25);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-r * 1.4, -r * 0.08);
+        ctx.quadraticCurveTo(0, -r * 1.0, r * 1.4, -r * 0.08);
+        ctx.stroke();
+
+        ctx.restore();
+
+      } else {
+        // ── Default projectile (glowing orb) ───────────────────────────────
+        ctx.save();
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 10;
+        const g = ctx.createRadialGradient(sx - p.radius * 0.3, sy - p.radius * 0.3, 0, sx, sy, p.radius);
+        g.addColorStop(0, this._lightenColor(p.color, 0.6));
+        g.addColorStop(1, p.color);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
   }
 
@@ -1669,54 +1759,259 @@ export class Renderer {
     }
   }
 
-  drawOrbitWeapons(weapons, camera) {
+  drawOrbitWeapons(weapons, camera, elapsed = 0) {
     const ctx = this.ctx;
+    const t = this.menuTime;
+
     for (const weapon of weapons) {
+      // ── Magic orb (orbit) ───────────────────────────────────────────────
       if (weapon.type === 'orbit' && weapon.orbs) {
         for (const orb of weapon.orbs) {
           const sx = orb.x - camera.x;
           const sy = orb.y - camera.y;
-          ctx.fillStyle = orb.color;
-          ctx.globalAlpha = 0.8;
-          ctx.beginPath();
-          ctx.arc(sx, sy, orb.radius, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
+          const r = orb.radius;
+          ctx.save();
+          // Inner glow core
+          ctx.shadowColor = orb.color;
+          ctx.shadowBlur = 18;
+          const g = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.3, 0, sx, sy, r);
+          g.addColorStop(0, this._lightenColor(orb.color, 0.7));
+          g.addColorStop(0.5, orb.color);
+          g.addColorStop(1, this._darkenColor(orb.color, 0.4));
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+          // Sparkle ring
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(sx, sy, r * 1.4, 0, Math.PI * 2); ctx.stroke();
+          // Rotating inner star
+          ctx.translate(sx, sy);
+          ctx.rotate(t * 3);
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+          ctx.lineWidth = 1;
+          for (let k = 0; k < 4; k++) {
+            const a = (k / 4) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45);
+            ctx.lineTo(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.85);
+            ctx.stroke();
+          }
+          ctx.restore();
         }
       }
 
-      // Chain lightning visual
+      // ── Chain lightning ─────────────────────────────────────────────────
       if (weapon.type === 'chain' && weapon.chainTargets && weapon.chainTimer > 0) {
-        ctx.strokeStyle = weapon.color;
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = weapon.chainTimer / weapon.config.duration;
-        ctx.beginPath();
-        for (let i = 0; i < weapon.chainTargets.length; i++) {
-          const t = weapon.chainTargets[i];
-          const sx = t.x - camera.x;
-          const sy = t.y - camera.y;
-          if (i === 0) ctx.moveTo(sx, sy);
-          else ctx.lineTo(sx, sy);
+        const fade = weapon.chainTimer / weapon.config.duration;
+        ctx.save();
+        // Draw multiple jittered bolt layers for crackling effect
+        for (let layer = 0; layer < 3; layer++) {
+          ctx.globalAlpha = fade * (0.9 - layer * 0.25);
+          ctx.strokeStyle = layer === 0 ? '#ffffff' : weapon.color;
+          ctx.lineWidth = layer === 0 ? 1.5 : 3 - layer;
+          ctx.shadowColor = weapon.color;
+          ctx.shadowBlur = layer === 0 ? 0 : 12;
+          ctx.beginPath();
+          for (let i = 0; i < weapon.chainTargets.length; i++) {
+            const tgt = weapon.chainTargets[i];
+            const sx = tgt.x - camera.x;
+            const sy = tgt.y - camera.y;
+            if (i === 0) {
+              ctx.moveTo(sx, sy);
+            } else {
+              // Jitter midpoints for lightning zig-zag
+              const prev = weapon.chainTargets[i - 1];
+              const px = prev.x - camera.x, py = prev.y - camera.y;
+              const jx = (px + sx) / 2 + (Math.random() - 0.5) * 20;
+              const jy = (py + sy) / 2 + (Math.random() - 0.5) * 20;
+              ctx.quadraticCurveTo(jx, jy, sx, sy);
+            }
+          }
+          ctx.stroke();
         }
-        ctx.stroke();
         ctx.globalAlpha = 1;
+        ctx.restore();
       }
 
-      // Area effects
+      // ── Area effects (fire circle / holy sword) ─────────────────────────
       if (weapon.areas) {
         for (const area of weapon.areas) {
           const sx = area.x - camera.x;
           const sy = area.y - camera.y;
-          const alpha = Math.min(1, area.timer / area.duration * 2);
-          ctx.globalAlpha = alpha * 0.3;
-          ctx.fillStyle = area.color;
-          ctx.beginPath();
-          ctx.arc(sx, sy, area.radius, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
+          const r = area.radius;
+          const fade = Math.min(1, area.timer / area.duration * 2);
+
+          const wid = weapon.id || '';
+          const isHoly = wid.includes('holy_sword');
+          const isFire = wid.includes('fire_circle');
+
+          if (isHoly) {
+            this._drawHolySwordEffect(sx, sy, r, fade, t);
+          } else if (isFire) {
+            this._drawFireCircleEffect(sx, sy, r, fade, t);
+          } else {
+            // Generic area
+            ctx.save();
+            ctx.globalAlpha = fade * 0.3;
+            ctx.fillStyle = area.color;
+            ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
         }
       }
     }
+  }
+
+  // ── Fire circle animated effect ─────────────────────────────────────────
+  _drawFireCircleEffect(sx, sy, r, fade, t) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(sx, sy);
+
+    // Ground scorch (dark ring)
+    ctx.globalAlpha = fade * 0.55;
+    ctx.fillStyle = '#220800';
+    ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Radial heat distortion ring
+    ctx.shadowColor = '#ff4400';
+    ctx.shadowBlur = 22;
+    ctx.strokeStyle = `rgba(255,100,0,${fade * 0.6})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Animated flame tongues around the perimeter
+    const flameCount = 10;
+    for (let i = 0; i < flameCount; i++) {
+      const baseAngle = (i / flameCount) * Math.PI * 2;
+      const wobble = Math.sin(t * 6 + i * 1.3) * 0.22;
+      const a = baseAngle + wobble;
+      const flameH = r * (0.55 + Math.sin(t * 5 + i * 2.1) * 0.22);
+      const baseW = r * 0.22;
+
+      ctx.save();
+      ctx.rotate(a);
+      ctx.translate(r * 0.72, 0);
+      ctx.rotate(Math.PI / 2); // point up
+
+      const fg = ctx.createLinearGradient(0, 0, 0, -flameH);
+      fg.addColorStop(0, `rgba(255,60,0,${fade * 0.9})`);
+      fg.addColorStop(0.4, `rgba(255,160,0,${fade * 0.75})`);
+      fg.addColorStop(1, `rgba(255,240,60,0)`);
+      ctx.fillStyle = fg;
+      ctx.shadowColor = '#ff6600';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(-baseW * 0.6, -flameH * 0.3, -baseW * 0.3, -flameH * 0.7, 0, -flameH);
+      ctx.bezierCurveTo(baseW * 0.3, -flameH * 0.7, baseW * 0.6, -flameH * 0.3, 0, 0);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Inner fire pool
+    const poolG = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.75);
+    poolG.addColorStop(0, `rgba(255,220,60,${fade * 0.65})`);
+    poolG.addColorStop(0.5, `rgba(255,80,0,${fade * 0.45})`);
+    poolG.addColorStop(1, `rgba(200,30,0,0)`);
+    ctx.shadowColor = '#ff4400';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = poolG;
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.75, r * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ── Holy sword animated effect ──────────────────────────────────────────
+  _drawHolySwordEffect(sx, sy, r, fade, t) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(sx, sy);
+
+    // Divine beam from above (tall glowing column)
+    const beamH = r * 4.5;
+    const beamW = r * 0.55;
+    const beamG = ctx.createLinearGradient(0, -beamH, 0, r * 0.5);
+    beamG.addColorStop(0, 'rgba(255,255,200,0)');
+    beamG.addColorStop(0.4, `rgba(255,255,180,${fade * 0.35})`);
+    beamG.addColorStop(0.85, `rgba(255,255,100,${fade * 0.65})`);
+    beamG.addColorStop(1, `rgba(255,255,60,0)`);
+    ctx.fillStyle = beamG;
+    ctx.shadowColor = '#ffffa0';
+    ctx.shadowBlur = 24;
+    ctx.fillRect(-beamW / 2, -beamH, beamW, beamH + r * 0.5);
+
+    // Impact circle on ground
+    const impactG = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    impactG.addColorStop(0, `rgba(255,255,200,${fade * 0.7})`);
+    impactG.addColorStop(0.5, `rgba(255,220,80,${fade * 0.4})`);
+    impactG.addColorStop(1, 'rgba(255,200,40,0)');
+    ctx.fillStyle = impactG;
+    ctx.shadowColor = '#ffee44';
+    ctx.shadowBlur = 18;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+
+    // Sword silhouette (blade + guard + pommel) — falling from top
+    const swordScale = r * 0.9;
+    const sway = Math.sin(t * 3) * 0.06;
+    ctx.rotate(sway);
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 16;
+
+    // Blade
+    const bladeG = ctx.createLinearGradient(-swordScale * 0.1, -swordScale * 1.1, swordScale * 0.1, swordScale * 0.5);
+    bladeG.addColorStop(0, '#ffffff');
+    bladeG.addColorStop(0.4, '#ffffcc');
+    bladeG.addColorStop(1, '#ffcc44');
+    ctx.fillStyle = bladeG;
+    ctx.beginPath();
+    ctx.moveTo(0, -swordScale * 1.1);   // tip
+    ctx.lineTo(swordScale * 0.1, -swordScale * 0.3);
+    ctx.lineTo(swordScale * 0.07, swordScale * 0.45);
+    ctx.lineTo(-swordScale * 0.07, swordScale * 0.45);
+    ctx.lineTo(-swordScale * 0.1, -swordScale * 0.3);
+    ctx.closePath(); ctx.fill();
+
+    // Guard (crossguard)
+    ctx.fillStyle = '#ffdd44';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(0, -swordScale * 0.22, swordScale * 0.42, swordScale * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pommel
+    ctx.beginPath();
+    ctx.arc(0, swordScale * 0.52, swordScale * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Divine sparkles around blade
+    ctx.shadowBlur = 0;
+    for (let k = 0; k < 5; k++) {
+      const sa = t * 4 + (k / 5) * Math.PI * 2;
+      const dist = swordScale * (0.4 + Math.sin(t * 3 + k) * 0.2);
+      const sx2 = Math.cos(sa) * dist * 0.5;
+      const sy2 = Math.sin(sa) * dist - swordScale * 0.3;
+      ctx.globalAlpha = fade * (0.5 + Math.sin(t * 5 + k * 1.3) * 0.4);
+      ctx.fillStyle = '#ffffff';
+      // 4-point star sparkle
+      ctx.beginPath();
+      ctx.moveTo(sx2, sy2 - 4);
+      ctx.lineTo(sx2 + 1, sy2 - 1);
+      ctx.lineTo(sx2 + 4, sy2);
+      ctx.lineTo(sx2 + 1, sy2 + 1);
+      ctx.lineTo(sx2, sy2 + 4);
+      ctx.lineTo(sx2 - 1, sy2 + 1);
+      ctx.lineTo(sx2 - 4, sy2);
+      ctx.lineTo(sx2 - 1, sy2 - 1);
+      ctx.closePath(); ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   drawHUD(player, elapsed, runGold, skillLevels) {
