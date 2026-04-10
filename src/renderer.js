@@ -24,6 +24,415 @@ export class Renderer {
 
     // Screen transition
     this.transition = null; // { alpha, direction: 'in'|'out', speed, callback }
+
+    // Menu animation time
+    this.menuTime = 0;
+
+    // Animated starfield for menu/lobby screens
+    this.stars = Array.from({ length: 90 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: Math.random() * 1.4 + 0.3,
+      speed: Math.random() * 0.00018 + 0.00005,
+      alpha: Math.random() * 0.55 + 0.15,
+      twinkle: Math.random() * Math.PI * 2,
+    }));
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  // Lighten a #rrggbb color by mixing toward white
+  _lightenColor(hex, t) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!m) return hex;
+    const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+    return `rgb(${Math.round(r+(255-r)*t)},${Math.round(g+(255-g)*t)},${Math.round(b+(255-b)*t)})`;
+  }
+
+  // Darken a #rrggbb color by multiplying channels
+  _darkenColor(hex, t) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!m) return hex;
+    const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+    return `rgb(${Math.round(r*(1-t))},${Math.round(g*(1-t))},${Math.round(b*(1-t))})`;
+  }
+
+  // Sphere-shaded filled circle (highlight offset top-left)
+  _drawSphere(sx, sy, r, color) {
+    const ctx = this.ctx;
+    const g = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.35, r * 0.06, sx, sy, r);
+    g.addColorStop(0, this._lightenColor(color, 0.55));
+    g.addColorStop(0.55, color);
+    g.addColorStop(1, this._darkenColor(color, 0.45));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ── Player sprite ─────────────────────────────────────────────────────────
+  _drawPlayerSprite(sx, sy, r, player) {
+    const ctx = this.ctx;
+    const color = player.color || '#00d4ff';
+
+    // Outer glow halo
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 18;
+    this._drawSphere(sx, sy, r, color);
+    ctx.restore();
+
+    // Specular highlight
+    ctx.save();
+    ctx.globalAlpha = 0.38;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(sx - r * 0.28, sy - r * 0.30, r * 0.27, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Directional sword symbol
+    const fx = player.facingX || 0;
+    const fy = player.facingY || -1;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(Math.atan2(fy, fx) + Math.PI / 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.88)';
+    ctx.lineCap = 'round';
+    // Blade
+    ctx.lineWidth = Math.max(1.5, r * 0.17);
+    ctx.beginPath(); ctx.moveTo(0, -r * 0.82); ctx.lineTo(0, r * 0.42); ctx.stroke();
+    // Guard
+    ctx.lineWidth = Math.max(1.5, r * 0.14);
+    ctx.beginPath(); ctx.moveTo(-r * 0.36, -r * 0.14); ctx.lineTo(r * 0.36, -r * 0.14); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── Enemy sprite ──────────────────────────────────────────────────────────
+  _drawEnemySprite(sx, sy, r, enemy) {
+    const ctx = this.ctx;
+    const color = enemy.color;
+    const type = enemy.type;
+
+    // Body sphere
+    this._drawSphere(sx, sy, r, color);
+
+    // Specular
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(sx - r * 0.25, sy - r * 0.28, r * 0.24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Type-specific mark
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.strokeStyle = 'rgba(255,255,255,0.78)';
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (type === 'shooter') {
+      // Target reticle
+      ctx.lineWidth = r * 0.13;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.46, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.16, 0, Math.PI * 2); ctx.fill();
+    } else if (type === 'tank') {
+      // Double armor ring
+      ctx.lineWidth = r * 0.18;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.56, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = r * 0.10;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.30, 0, Math.PI * 2); ctx.stroke();
+    } else if (type === 'exploder') {
+      // 4-point starburst + center dot
+      ctx.lineWidth = r * 0.14;
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r * 0.18, Math.sin(a) * r * 0.18);
+        ctx.lineTo(Math.cos(a) * r * 0.68, Math.sin(a) * r * 0.68);
+        ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.14, 0, Math.PI * 2); ctx.fill();
+    } else if (type === 'summoner') {
+      // Three animated orbiting dots
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2 + this.menuTime * 2.2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * r * 0.56, Math.sin(a) * r * 0.56, r * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (type === 'healer') {
+      // Cross
+      ctx.lineWidth = r * 0.22;
+      ctx.beginPath(); ctx.moveTo(-r * 0.44, 0); ctx.lineTo(r * 0.44, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -r * 0.44); ctx.lineTo(0, r * 0.44); ctx.stroke();
+    } else if (type === 'shielder') {
+      // Shield outline
+      ctx.lineWidth = r * 0.15;
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.5);
+      ctx.lineTo(r * 0.37, -r * 0.18);
+      ctx.lineTo(r * 0.28, r * 0.38);
+      ctx.lineTo(0, r * 0.56);
+      ctx.lineTo(-r * 0.28, r * 0.38);
+      ctx.lineTo(-r * 0.37, -r * 0.18);
+      ctx.closePath();
+      ctx.stroke();
+    } else if (type === 'dasher') {
+      // Three speed-lines (horizontal)
+      ctx.lineWidth = r * 0.13;
+      for (let k = -1; k <= 1; k++) {
+        const oy = k * r * 0.28;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.52, oy); ctx.lineTo(r * 0.52, oy); ctx.stroke();
+      }
+    } else if (type === 'boss') {
+      // Crown: 3 spikes + base bar
+      ctx.lineWidth = r * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.54, r * 0.28);
+      ctx.lineTo(-r * 0.54, -r * 0.12);
+      ctx.lineTo(-r * 0.26, -r * 0.48);
+      ctx.lineTo(0, -r * 0.18);
+      ctx.lineTo(r * 0.26, -r * 0.48);
+      ctx.lineTo(r * 0.54, -r * 0.12);
+      ctx.lineTo(r * 0.54, r * 0.28);
+      ctx.stroke();
+    } else {
+      // charger / default: upward triangle
+      ctx.lineWidth = r * 0.13;
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.52);
+      ctx.lineTo(r * 0.36, r * 0.32);
+      ctx.lineTo(-r * 0.36, r * 0.32);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // ── Pickup sprites ────────────────────────────────────────────────────────
+  _drawGemSprite(sx, sy, r) {
+    const ctx = this.ctx;
+    const h = r * 1.15;
+    const w = h * 0.62;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.shadowColor = '#00d4ff';
+    ctx.shadowBlur = 10;
+    const g = ctx.createLinearGradient(-w, -h, w, h);
+    g.addColorStop(0, '#aaeeff');
+    g.addColorStop(0.38, '#00ccff');
+    g.addColorStop(1, '#0055bb');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(0, -h);
+    ctx.lineTo(w, -h * 0.18);
+    ctx.lineTo(w, h * 0.18);
+    ctx.lineTo(0, h);
+    ctx.lineTo(-w, h * 0.18);
+    ctx.lineTo(-w, -h * 0.18);
+    ctx.closePath();
+    ctx.fill();
+    // Inner facet
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -h * 0.6); ctx.lineTo(w * 0.72, 0);
+    ctx.lineTo(0, h * 0.6); ctx.lineTo(-w * 0.72, 0);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  _drawHeartSprite(sx, sy, r, large = false) {
+    const ctx = this.ctx;
+    const s = r * (large ? 1.1 : 0.78);
+    ctx.save();
+    ctx.translate(sx, sy - s * 0.1);
+    ctx.shadowColor = '#ff4488';
+    ctx.shadowBlur = large ? 14 : 8;
+    const g = ctx.createRadialGradient(-s * 0.2, -s * 0.2, 0, 0, 0, s * 1.5);
+    g.addColorStop(0, '#ff99cc');
+    g.addColorStop(0.5, '#ff2266');
+    g.addColorStop(1, '#aa0044');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(0, s * 0.34);
+    ctx.bezierCurveTo(s * 0.98, -s * 0.28, s * 1.08, -s * 1.08, 0, -s * 0.58);
+    ctx.bezierCurveTo(-s * 1.08, -s * 1.08, -s * 0.98, -s * 0.28, 0, s * 0.34);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  _drawPotionSprite(sx, sy, r) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.shadowColor = '#44ff88';
+    ctx.shadowBlur = 10;
+    // Body (large rounded oval)
+    const g = ctx.createRadialGradient(-r * 0.22, r * 0.05, 0, r * 0.1, r * 0.25, r * 1.05);
+    g.addColorStop(0, '#aaffcc');
+    g.addColorStop(0.45, '#22cc66');
+    g.addColorStop(1, '#115533');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.22, r * 0.72, r * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Neck
+    ctx.fillStyle = '#33dd77';
+    ctx.fillRect(-r * 0.22, -r * 0.54, r * 0.44, r * 0.48);
+    // Cork
+    ctx.fillStyle = '#cc9944';
+    this._roundRect(-r * 0.26, -r * 0.72, r * 0.52, r * 0.22, 2);
+    ctx.fill();
+    // Shine
+    ctx.globalAlpha = 0.38;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-r * 0.22, r * 0.06, r * 0.26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ── Chest sprite ──────────────────────────────────────────────────────────
+  _drawChestSprite(sx, sy, r) {
+    const ctx = this.ctx;
+    const w = r * 2.1;
+    const h = r * 1.55;
+    const lidH = h * 0.42;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.shadowColor = '#ffdd44';
+    ctx.shadowBlur = 14;
+    // Body
+    this._roundRect(-w / 2, -h / 2 + lidH, w, h - lidH, 3);
+    ctx.fillStyle = '#7a4a1a';
+    ctx.fill();
+    ctx.strokeStyle = '#cc9922';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Lid
+    this._roundRect(-w / 2, -h / 2, w, lidH + 2, 3);
+    ctx.fillStyle = '#9a6022';
+    ctx.fill();
+    ctx.strokeStyle = '#ffdd44';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Gold clasp
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = '#ffdd44';
+    this._roundRect(-r * 0.22, -r * 0.2, r * 0.44, r * 0.38, 3);
+    ctx.fill();
+    // Hinge line
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#cc9922';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2 + 3, -h / 2 + lidH + 1);
+    ctx.lineTo(w / 2 - 3, -h / 2 + lidH + 1);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── Barrel sprite ─────────────────────────────────────────────────────────
+  _drawBarrelSprite(sx, sy, r) {
+    const ctx = this.ctx;
+    const bw = r * 1.75;
+    const bh = r * 2.1;
+    ctx.save();
+    ctx.translate(sx, sy);
+    // Body
+    const g = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0);
+    g.addColorStop(0, '#3a2010');
+    g.addColorStop(0.3, '#8a5a28');
+    g.addColorStop(0.7, '#8a5a28');
+    g.addColorStop(1, '#3a2010');
+    ctx.fillStyle = g;
+    this._roundRect(-bw / 2, -bh / 2, bw, bh, bw * 0.18);
+    ctx.fill();
+    // Metal bands (top, middle, bottom)
+    ctx.strokeStyle = '#777766';
+    ctx.lineWidth = r * 0.22;
+    for (const by of [-bh * 0.32, 0, bh * 0.32]) {
+      ctx.beginPath();
+      ctx.ellipse(0, by, bw / 2, bw * 0.11, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Wood grain
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = 1;
+    for (let i = -2; i <= 2; i++) {
+      const gx = i * bw * 0.15;
+      ctx.beginPath();
+      ctx.moveTo(gx, -bh / 2 + 5); ctx.lineTo(gx, bh / 2 - 5); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ── Skill icon badge (for level-up cards & HUD) ───────────────────────────
+  // Draws a small colored circle with a category-coded inner symbol
+  _drawSkillBadge(sx, sy, r, skill) {
+    const ctx = this.ctx;
+    const cat = skill.pool || skill.category || 'passive';
+    const color = cat === 'archero' ? '#4488ff'
+      : cat === 'survivor' ? '#44cc66'
+      : cat === 'weapon' ? '#cc44ff'
+      : '#888899';
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    // Circle background
+    const g = ctx.createRadialGradient(-r * 0.25, -r * 0.28, 0, 0, 0, r);
+    g.addColorStop(0, this._lightenColor(color, 0.5));
+    g.addColorStop(1, this._darkenColor(color, 0.3));
+    ctx.fillStyle = g;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Draw a rounded-rectangle path (call fill/stroke after)
+  _roundRect(x, y, w, h, r) {
+    const ctx = this.ctx;
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  // Draw twinkling starfield (for menu backgrounds)
+  drawStarfield(canvas) {
+    const ctx = this.ctx;
+    for (const s of this.stars) {
+      const screenX = s.x * canvas.width;
+      const screenY = s.y * canvas.height;
+      const alpha = s.alpha * (0.55 + Math.sin(this.menuTime * 1.8 + s.twinkle) * 0.45);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, s.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   clear(camera) {
@@ -81,6 +490,17 @@ export class Renderer {
     // Floor fill
     ctx.fillStyle = room.floorColor;
     ctx.fillRect(0, 0, w, h);
+
+    // Subtle stone tile grid on floor
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    const tileSize = 48;
+    for (let tx = wall; tx < w - wall; tx += tileSize) {
+      ctx.beginPath(); ctx.moveTo(tx, wall); ctx.lineTo(tx, h - wall); ctx.stroke();
+    }
+    for (let ty = wall; ty < h - wall; ty += tileSize) {
+      ctx.beginPath(); ctx.moveTo(wall, ty); ctx.lineTo(w - wall, ty); ctx.stroke();
+    }
 
     // 4 wall rectangles
     ctx.fillStyle = room.wallColor;
@@ -205,56 +625,7 @@ export class Renderer {
   }
 
   drawRoomClearPanel(skillChoices, canvas) {
-    const ctx = this.ctx;
-
-    // Overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Title with gold border
-    ctx.fillStyle = '#ffdd44';
-    ctx.font = 'bold 24px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('選擇技能', canvas.width / 2, canvas.height * 0.15);
-
-    // Cards (same layout as level-up)
-    const count = skillChoices.length;
-    const gap = 10;
-    const cardW = Math.min(140, (canvas.width - gap * (count + 1)) / count);
-    const cardH = 120;
-    const totalW = count * cardW + (count - 1) * gap;
-    const startX = (canvas.width - totalW) / 2;
-    const cardY = canvas.height * 0.22;
-
-    for (let i = 0; i < count; i++) {
-      const skill = skillChoices[i];
-      const bx = startX + i * (cardW + gap);
-
-      ctx.fillStyle = '#1a1a3e';
-      ctx.fillRect(bx, cardY, cardW, cardH);
-      ctx.strokeStyle = '#ffdd44';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(bx, cardY, cardW, cardH);
-
-      ctx.font = '28px serif';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(skill.icon, bx + cardW / 2, cardY + 35);
-
-      ctx.font = 'bold 12px monospace';
-      ctx.fillStyle = '#ffdd44';
-      ctx.fillText(skill.name, bx + cardW / 2, cardY + 58);
-
-      ctx.font = '10px monospace';
-      ctx.fillStyle = '#aaaacc';
-      const desc = skill.description;
-      if (desc.length > 10) {
-        ctx.fillText(desc.substring(0, 10), bx + cardW / 2, cardY + 78);
-        ctx.fillText(desc.substring(10), bx + cardW / 2, cardY + 93);
-      } else {
-        ctx.fillText(desc, bx + cardW / 2, cardY + 85);
-      }
-    }
+    this._drawSkillCards(skillChoices, canvas, '房間通關！選擇技能');
   }
 
   drawChapterClear(canvas, chapterNum, runGold) {
@@ -290,12 +661,8 @@ export class Renderer {
       const sx = chest.x - camera.x;
       const sy = chest.y - camera.y;
       const pulse = Math.sin(elapsed * 3) * 1;
-      const size = (chest.radius + pulse) * 2.2;
-      ctx.save();
-      ctx.font = `${Math.round(size)}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('📦', sx, sy);
+      const r = chest.radius + pulse;
+      this._drawChestSprite(sx, sy, r);
       // Subtle glow ring when not yet opened
       ctx.globalAlpha = 0.3 + Math.sin(elapsed * 3) * 0.15;
       ctx.strokeStyle = '#ffdd44';
@@ -308,18 +675,11 @@ export class Renderer {
   }
 
   drawBarrels(barrels, camera) {
-    const ctx = this.ctx;
     for (const barrel of barrels) {
       if (!barrel.alive) continue;
       const sx = barrel.x - camera.x;
       const sy = barrel.y - camera.y;
-      const size = barrel.radius * 2.5;
-      ctx.save();
-      ctx.font = `${Math.round(size)}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🛢️', sx, sy);
-      ctx.restore();
+      this._drawBarrelSprite(sx, sy, barrel.radius);
     }
   }
 
@@ -336,32 +696,19 @@ export class Renderer {
     const pulse = Math.sin(elapsed * 3) * 1;
     const r = player.radius + pulse;
 
-    // Draw emoji icon
-    ctx.save();
-    ctx.font = `${Math.round(r * 2.4)}px serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(player.icon || '🗡️', sx, sy);
-    ctx.restore();
+    // Custom player sprite (replaces emoji)
+    this._drawPlayerSprite(sx, sy, r, player);
 
     // Hit flash overlay
     if (player.hitFlashTimer > 0) {
       ctx.save();
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = Math.min(0.65, player.hitFlashTimer * 6.5);
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
-
-    // Direction indicator (small line in front of player)
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(sx + player.facingX * r, sy + player.facingY * r);
-    ctx.lineTo(sx + player.facingX * (r + 7), sy + player.facingY * (r + 7));
-    ctx.stroke();
   }
 
   drawEnemies(enemies, camera, elapsed = 0) {
@@ -377,18 +724,13 @@ export class Renderer {
       const pulse = Math.sin(elapsed * 3 + e.x * 0.1) * 1;
       const r = e.radius + pulse;
 
-      // Draw emoji icon
-      ctx.save();
-      ctx.font = `${Math.round(r * 2.4)}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(e.icon, sx, sy);
-      ctx.restore();
+      // Custom enemy sprite (replaces emoji)
+      this._drawEnemySprite(sx, sy, r, e);
 
       // Hit flash overlay
       if (e.hitFlashTimer > 0) {
         ctx.save();
-        ctx.globalAlpha = 0.7;
+        ctx.globalAlpha = Math.min(0.7, e.hitFlashTimer * 7);
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -396,21 +738,24 @@ export class Renderer {
         ctx.restore();
       }
 
-      // Frozen overlay
+      // Frozen overlay — icy sheen
       if (e.frozen > 0) {
         ctx.save();
-        ctx.globalAlpha = 0.5;
+        ctx.globalAlpha = Math.min(0.55, e.frozen * 0.4);
         ctx.fillStyle = '#88ddff';
         ctx.beginPath();
         ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#aaeeff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
         ctx.restore();
       }
 
-      // Poisoned overlay
+      // Poisoned overlay — green tinge
       if (e.poisoned > 0) {
         ctx.save();
-        ctx.globalAlpha = 0.3;
+        ctx.globalAlpha = Math.min(0.35, e.poisoned * 0.2);
         ctx.fillStyle = '#66ff44';
         ctx.beginPath();
         ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
@@ -438,10 +783,18 @@ export class Renderer {
       const sx = p.x - camera.x;
       const sy = p.y - camera.y;
 
-      ctx.fillStyle = p.color;
+      ctx.save();
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 8;
+      // Gradient sphere for projectile
+      const g = ctx.createRadialGradient(sx - p.radius * 0.3, sy - p.radius * 0.3, 0, sx, sy, p.radius);
+      g.addColorStop(0, this._lightenColor(p.color, 0.6));
+      g.addColorStop(1, p.color);
+      ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -451,33 +804,45 @@ export class Renderer {
       if (!p.alive) continue;
       const sx = p.x - camera.x;
       const sy = p.y - camera.y;
+      const color = p.color || '#ff66aa';
 
-      ctx.fillStyle = p.color || '#ff66aa';
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 10;
+      const g = ctx.createRadialGradient(sx - p.radius * 0.3, sy - p.radius * 0.3, 0, sx, sy, p.radius);
+      g.addColorStop(0, this._lightenColor(color, 0.55));
+      g.addColorStop(1, color);
+      ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
+      // White ring for enemy projectile readability
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
+      ctx.restore();
     }
   }
 
   drawPickups(pickups, camera, elapsed = 0) {
-    const ctx = this.ctx;
     for (const p of pickups) {
       if (!p.alive) continue;
       const sx = p.x - camera.x;
       const sy = p.y - camera.y;
 
-      const pulse = Math.sin(elapsed * 5 + p.x * 0.2) * 1.5;
-      const size = (p.radius + pulse) * 2.6;
+      const pulse = Math.sin(elapsed * 5 + p.x * 0.2) * 1.2;
+      const r = p.radius + pulse;
 
-      ctx.save();
-      ctx.font = `${Math.round(size)}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(p.type === 'hp' ? (p.hpValue >= 40 ? '🧪' : '💗') : '💎', sx, sy);
-      ctx.restore();
+      if (p.type === 'hp') {
+        if (p.hpValue >= 40) {
+          this._drawPotionSprite(sx, sy, r);
+        } else {
+          this._drawHeartSprite(sx, sy, r, false);
+        }
+      } else {
+        this._drawGemSprite(sx, sy, r);
+      }
     }
   }
 
@@ -537,21 +902,44 @@ export class Renderer {
 
     const hpBarX = (this.canvas.width - ui.hpBarWidth) / 2;
     const hpBarY = 15;
-
-    // HP bar background
-    ctx.fillStyle = '#333333';
-    ctx.fillRect(hpBarX, hpBarY, ui.hpBarWidth, ui.hpBarHeight);
-
-    // HP bar fill
     const hpPercent = Math.max(0, player.hp / player.maxHp);
-    const hpColor = hpPercent > 0.5 ? '#44dd44' : hpPercent > 0.25 ? '#dddd44' : '#dd4444';
-    ctx.fillStyle = hpColor;
-    ctx.fillRect(hpBarX, hpBarY, ui.hpBarWidth * hpPercent, ui.hpBarHeight);
+
+    // HP bar — rounded background
+    ctx.save();
+    this._roundRect(hpBarX, hpBarY, ui.hpBarWidth, ui.hpBarHeight, 5);
+    ctx.fillStyle = '#1a1a2a';
+    ctx.fill();
+    ctx.restore();
+
+    // HP bar — gradient fill with low-HP red glow
+    if (hpPercent > 0) {
+      ctx.save();
+      const hpGrad = ctx.createLinearGradient(hpBarX, 0, hpBarX + ui.hpBarWidth, 0);
+      if (hpPercent > 0.5) {
+        hpGrad.addColorStop(0, '#1e8822');
+        hpGrad.addColorStop(1, '#44ee55');
+      } else if (hpPercent > 0.25) {
+        hpGrad.addColorStop(0, '#996600');
+        hpGrad.addColorStop(1, '#ffdd22');
+      } else {
+        hpGrad.addColorStop(0, '#881111');
+        hpGrad.addColorStop(1, '#ff4444');
+        ctx.shadowColor = '#ff2200';
+        ctx.shadowBlur = 10 + Math.sin(this.menuTime * 5) * 4;
+      }
+      this._roundRect(hpBarX, hpBarY, ui.hpBarWidth * hpPercent, ui.hpBarHeight, 5);
+      ctx.fillStyle = hpGrad;
+      ctx.fill();
+      ctx.restore();
+    }
 
     // HP bar border
-    ctx.strokeStyle = '#666';
+    ctx.save();
+    this._roundRect(hpBarX, hpBarY, ui.hpBarWidth, ui.hpBarHeight, 5);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(hpBarX, hpBarY, ui.hpBarWidth, ui.hpBarHeight);
+    ctx.stroke();
+    ctx.restore();
 
     // HP text
     ctx.fillStyle = '#ffffff';
@@ -559,97 +947,145 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.fillText(`${Math.ceil(player.hp)}/${player.maxHp}`, this.canvas.width / 2, hpBarY + ui.hpBarHeight - 3);
 
-    // EXP bar
+    // EXP bar — rounded with soft glow
     const expBarY = hpBarY + ui.hpBarHeight + 3;
-    ctx.fillStyle = '#222';
-    ctx.fillRect(hpBarX, expBarY, ui.hpBarWidth, ui.expBarHeight);
+    ctx.save();
+    this._roundRect(hpBarX, expBarY, ui.hpBarWidth, ui.expBarHeight, 3);
+    ctx.fillStyle = '#111122';
+    ctx.fill();
     const expPercent = player.exp / player.expToNextLevel();
-    ctx.fillStyle = '#6688ff';
-    ctx.fillRect(hpBarX, expBarY, ui.hpBarWidth * Math.min(1, expPercent), ui.expBarHeight);
+    if (expPercent > 0) {
+      this._roundRect(hpBarX, expBarY, ui.hpBarWidth * Math.min(1, expPercent), ui.expBarHeight, 3);
+      ctx.fillStyle = '#5577ff';
+      ctx.shadowColor = '#4466ff';
+      ctx.shadowBlur = 6;
+      ctx.fill();
+    }
+    ctx.restore();
 
-    // Level (top-left)
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Lv.${player.level}`, 10, 28);
+    // Level badge (top-left)
+    ctx.save();
+    this._roundRect(6, 10, 46, 22, 5);
+    ctx.fillStyle = 'rgba(30,30,70,0.75)';
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#ccddff';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Lv.${player.level}`, 29, 25);
 
     // Timer (top-center, above HP bar)
     const mins = Math.floor(elapsed / 60);
     const secs = Math.floor(elapsed % 60);
+    ctx.fillStyle = '#aabbcc';
+    ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, this.canvas.width / 2, 12);
 
-    // Kill count & Gold (top-left, below level)
+    // Kill count & Gold (top-left, below level badge)
     ctx.textAlign = 'left';
     ctx.font = '12px monospace';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(`Kills: ${player.kills}`, 10, 46);
+    ctx.fillStyle = '#ccccdd';
+    ctx.fillText(`☠ ${player.kills}`, 10, 48);
     ctx.fillStyle = '#ffdd44';
-    ctx.fillText(`Gold: ${Math.floor(runGold || 0)}`, 10, 62);
+    ctx.fillText(`✦ ${Math.floor(runGold || 0)}`, 10, 64);
 
-    // Acquired skills display (below kills/gold, wrapping to multiple rows)
+    // Acquired skills — colored dot badges + level number
     if (skillLevels) {
-      let sx = 10;
-      let sy = 78;
-      const iconW = 30;
-      const maxX = this.canvas.width / 2 - 10; // don't overlap HP bar
-      ctx.font = '11px monospace';
+      let bx = 10;
+      let by = 82;
+      const slotW = 28;
+      const maxX = this.canvas.width / 2 - 10;
       for (const def of getSkillDefs()) {
         const lv = skillLevels[def.id] || 0;
-        if (lv > 0) {
-          if (sx + iconW > maxX) {
-            sx = 10;
-            sy += 16;
-          }
-          ctx.textAlign = 'left';
-          ctx.fillStyle = '#ffffff';
-          ctx.fillText(`${def.icon}${lv}`, sx, sy);
-          sx += iconW;
-        }
+        if (lv <= 0) continue;
+        if (bx + slotW > maxX) { bx = 10; by += 20; }
+        this._drawSkillBadge(bx + 7, by - 5, 7, def);
+        ctx.fillStyle = '#ccddff';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(lv, bx + 16, by - 1);
+        bx += slotW;
       }
     }
 
-    // Pause button (top-right)
+    // Pause button (top-right) — drawn II symbol, no emoji
     const pbX = this.canvas.width - 50;
     const pbY = 10;
-    ctx.fillStyle = 'rgba(40, 40, 70, 0.7)';
-    ctx.fillRect(pbX, pbY, 40, 40);
-    ctx.strokeStyle = '#6666aa';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(pbX, pbY, 40, 40);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '20px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('⏸', pbX + 20, pbY + 28);
+    ctx.save();
+    this._roundRect(pbX, pbY, 40, 40, 7);
+    ctx.fillStyle = 'rgba(30,30,65,0.78)';
+    ctx.fill();
+    ctx.strokeStyle = '#5566aa';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    // Two vertical bars
+    ctx.fillStyle = '#aabbdd';
+    ctx.fillRect(pbX + 13, pbY + 11, 5, 18);
+    ctx.fillRect(pbX + 22, pbY + 11, 5, 18);
   }
 
   drawBossHPBar(boss) {
     if (!boss || !boss.alive) return;
     const ctx = this.ctx;
-    const barWidth = this.canvas.width * 0.6;
-    const barHeight = 14;
+    const barWidth = this.canvas.width * 0.62;
+    const barHeight = 15;
     const barX = (this.canvas.width - barWidth) / 2;
-    const barY = 55;
+    const barY = 56;
 
     // Background
-    ctx.fillStyle = '#222';
-    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.save();
+    this._roundRect(barX, barY, barWidth, barHeight, 5);
+    ctx.fillStyle = '#1a0808';
+    ctx.fill();
+    ctx.restore();
 
-    // HP fill
+    // HP fill — gradient + pulsing glow
     const hpPercent = Math.max(0, boss.hp / boss.maxHp);
-    ctx.fillStyle = '#ff2222';
-    ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+    if (hpPercent > 0) {
+      ctx.save();
+      const bossGrad = ctx.createLinearGradient(barX, 0, barX + barWidth, 0);
+      bossGrad.addColorStop(0, '#880000');
+      bossGrad.addColorStop(0.5, '#ff2222');
+      bossGrad.addColorStop(1, '#ff6644');
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 12 + Math.sin(this.menuTime * 3) * 5;
+      this._roundRect(barX, barY, barWidth * hpPercent, barHeight, 5);
+      ctx.fillStyle = bossGrad;
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Border
-    ctx.strokeStyle = '#888';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(barX, barY, barWidth, barHeight);
+    ctx.save();
+    this._roundRect(barX, barY, barWidth, barHeight, 5);
+    ctx.strokeStyle = 'rgba(255,80,80,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
 
-    // Boss name
-    ctx.fillStyle = '#ff6666';
+    // Boss name with skull drawn to the left
+    const cx = this.canvas.width / 2;
+    ctx.fillStyle = '#ff7777';
     ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(boss.typeDef.name, this.canvas.width / 2, barY - 4);
+    ctx.fillText(boss.typeDef.name, cx, barY - 5);
+
+    // Small drawn skull icon (left of name)
+    const nameW = ctx.measureText(boss.typeDef.name).width;
+    const skX = cx - nameW / 2 - 14;
+    const skY = barY - 11;
+    ctx.save();
+    ctx.translate(skX, skY);
+    ctx.strokeStyle = '#ff7777';
+    ctx.fillStyle = '#ff7777';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(0, -1, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a0808';
+    ctx.beginPath(); ctx.arc(-2, -1.5, 1.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(2, -1.5, 1.4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
   drawBossIndicator(boss, camera) {
@@ -722,41 +1158,63 @@ export class Renderer {
   drawPauseOverlay(canvas) {
     const ctx = this.ctx;
     const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
 
-    // Semi-transparent overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = 'rgba(0,0,8,0.72)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Panel card
+    const panW = 240, panH = 200;
+    ctx.save();
+    this._roundRect(cx - panW / 2, cy - panH / 2, panW, panH, 14);
+    ctx.fillStyle = 'rgba(16,16,44,0.92)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(100,120,220,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
     // Title
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 32px monospace';
+    ctx.fillStyle = '#ccd8ff';
+    ctx.font = 'bold 28px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('遊戲暫停', cx, canvas.height / 2 - 60);
+    ctx.fillText('遊戲暫停', cx, cy - 52);
 
     // Resume button
-    const btnW = 180;
-    const btnH = 50;
-    const btnX = cx - btnW / 2;
-    const resumeY = canvas.height / 2 - 10;
-
-    ctx.fillStyle = '#2a4e2a';
-    ctx.fillRect(btnX, resumeY, btnW, btnH);
-    ctx.strokeStyle = '#44aa44';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(btnX, resumeY, btnW, btnH);
-    ctx.fillStyle = '#44dd44';
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText('繼續遊戲', cx, resumeY + 32);
+    const btnW = 170, btnH = 46;
+    const resumeY = cy - 20;
+    ctx.save();
+    this._roundRect(cx - btnW / 2, resumeY, btnW, btnH, 9);
+    ctx.fillStyle = '#1a3a1a';
+    ctx.fill();
+    ctx.shadowColor = '#44cc44';
+    ctx.shadowBlur = 10;
+    this._roundRect(cx - btnW / 2, resumeY, btnW, btnH, 9);
+    ctx.strokeStyle = '#44cc44';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#55ee55';
+    ctx.font = 'bold 17px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('繼續遊戲', cx, resumeY + 30);
 
     // Exit button
-    const exitY = canvas.height / 2 + 60;
-    ctx.fillStyle = '#4e2a2a';
-    ctx.fillRect(btnX, exitY, btnW, btnH);
-    ctx.strokeStyle = '#aa4444';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(btnX, exitY, btnW, btnH);
-    ctx.fillStyle = '#dd4444';
-    ctx.fillText('離開遊戲', cx, exitY + 32);
+    const exitY = cy + 44;
+    ctx.save();
+    this._roundRect(cx - btnW / 2, exitY, btnW, btnH, 9);
+    ctx.fillStyle = '#3a1a1a';
+    ctx.fill();
+    ctx.shadowColor = '#cc4444';
+    ctx.shadowBlur = 10;
+    this._roundRect(cx - btnW / 2, exitY, btnW, btnH, 9);
+    ctx.strokeStyle = '#cc4444';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#ee5555';
+    ctx.font = 'bold 17px monospace';
+    ctx.fillText('離開遊戲', cx, exitY + 30);
   }
 
   triggerShake(intensity) {
@@ -781,6 +1239,15 @@ export class Renderer {
   }
 
   updateEffects(dt) {
+    // Advance menu animation clock
+    this.menuTime += dt;
+
+    // Drift stars slowly downward
+    for (const s of this.stars) {
+      s.y += s.speed;
+      if (s.y > 1) s.y = 0;
+    }
+
     // Decay shake
     if (this.shakeIntensity > 0) {
       this.shakeOffsetX = (Math.random() - 0.5) * 2 * this.shakeIntensity;
@@ -874,134 +1341,228 @@ export class Renderer {
     ctx.fill();
   }
 
-  drawLevelUpPanel(skillChoices, canvas) {
+  // Shared card-list renderer used by both level-up and room-clear panels
+  _drawSkillCards(skillChoices, canvas, titleText) {
     const ctx = this.ctx;
+    const cx = canvas.width / 2;
 
-    // Overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = 'rgba(0,0,10,0.75)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Title at top
+    // Title with glow
+    ctx.save();
+    ctx.shadowColor = '#ffdd44';
+    ctx.shadowBlur = 16;
     ctx.fillStyle = '#ffdd44';
-    ctx.font = 'bold 24px monospace';
+    ctx.font = 'bold 22px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('升級！選擇技能', canvas.width / 2, canvas.height * 0.15);
+    ctx.fillText(titleText, cx, canvas.height * 0.16);
+    ctx.restore();
 
-    // Horizontal card layout at ~35% of screen
     const count = skillChoices.length;
-    const gap = 10;
-    const cardW = Math.min(140, (canvas.width - gap * (count + 1)) / count);
-    const cardH = 120;
+    const gap = 12;
+    const cardW = Math.min(148, (canvas.width - gap * (count + 1)) / count);
+    const cardH = 130;
     const totalW = count * cardW + (count - 1) * gap;
-    const startX = (canvas.width - totalW) / 2;
-    const cardY = canvas.height * 0.22;
+    const startX = cx - totalW / 2;
+    const cardY = canvas.height * 0.23;
 
     for (let i = 0; i < count; i++) {
       const skill = skillChoices[i];
       const bx = startX + i * (cardW + gap);
+      const cat = skill.pool || skill.category || 'passive';
+      const accentColor = cat === 'archero' ? '#4488ff'
+        : cat === 'survivor' ? '#44cc66'
+        : cat === 'weapon' ? '#cc44ff'
+        : '#7766aa';
 
-      // Card background
-      ctx.fillStyle = '#2a2a4e';
-      ctx.fillRect(bx, cardY, cardW, cardH);
-      ctx.strokeStyle = '#6666aa';
+      // Card shadow + bg
+      ctx.save();
+      ctx.shadowColor = accentColor;
+      ctx.shadowBlur = 12;
+      this._roundRect(bx, cardY, cardW, cardH, 10);
+      ctx.fillStyle = '#1e1e3c';
+      ctx.fill();
+      // Accent border
+      this._roundRect(bx, cardY, cardW, cardH, 10);
+      ctx.strokeStyle = accentColor;
       ctx.lineWidth = 2;
-      ctx.strokeRect(bx, cardY, cardW, cardH);
+      ctx.stroke();
+      ctx.restore();
 
-      // Icon
-      ctx.font = '28px serif';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(skill.icon, bx + cardW / 2, cardY + 35);
+      // Skill icon badge (drawn circle with color)
+      this._drawSkillBadge(bx + cardW / 2, cardY + 28, 18, skill);
 
       // Name
-      ctx.font = 'bold 13px monospace';
+      ctx.font = 'bold 12px monospace';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(skill.name, bx + cardW / 2, cardY + 60);
+      ctx.textAlign = 'center';
+      ctx.fillText(skill.name, bx + cardW / 2, cardY + 62);
 
-      // Description (wrap if needed)
+      // Divider
+      ctx.strokeStyle = `${accentColor}66`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bx + 10, cardY + 70);
+      ctx.lineTo(bx + cardW - 10, cardY + 70);
+      ctx.stroke();
+
+      // Description (auto-wrap at ~13 chars)
       ctx.font = '10px monospace';
-      ctx.fillStyle = '#aaaacc';
+      ctx.fillStyle = '#9999bb';
       const desc = skill.description;
-      if (desc.length > 10) {
-        ctx.fillText(desc.substring(0, 10), bx + cardW / 2, cardY + 80);
-        ctx.fillText(desc.substring(10), bx + cardW / 2, cardY + 95);
+      const wrap = 13;
+      if (desc.length > wrap) {
+        ctx.fillText(desc.substring(0, wrap), bx + cardW / 2, cardY + 86);
+        ctx.fillText(desc.substring(wrap, wrap * 2), bx + cardW / 2, cardY + 100);
+        if (desc.length > wrap * 2) ctx.fillText(desc.substring(wrap * 2), bx + cardW / 2, cardY + 114);
       } else {
-        ctx.fillText(desc, bx + cardW / 2, cardY + 85);
+        ctx.fillText(desc, bx + cardW / 2, cardY + 93);
       }
     }
   }
 
+  drawLevelUpPanel(skillChoices, canvas) {
+    this._drawSkillCards(skillChoices, canvas, '升級！選擇技能');
+  }
+
   drawGameOver(player, elapsed, canvas, runGold) {
     const ctx = this.ctx;
-
-    // Overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    this.drawStarfield(canvas);
+
+    // Panel card
+    const panW = Math.min(300, canvas.width - 40);
+    const panH = 240;
+    ctx.save();
+    ctx.shadowColor = '#ff2222';
+    ctx.shadowBlur = 30;
+    this._roundRect(cx - panW / 2, cy - panH / 2, panW, panH, 14);
+    ctx.fillStyle = 'rgba(22,6,6,0.92)';
+    ctx.fill();
+    this._roundRect(cx - panW / 2, cy - panH / 2, panW, panH, 14);
+    ctx.strokeStyle = 'rgba(200,40,40,0.6)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
 
     // Title
-    ctx.fillStyle = '#ff4444';
-    ctx.font = 'bold 36px monospace';
+    ctx.save();
+    ctx.shadowColor = '#ff2222';
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = '#ff5555';
+    ctx.font = 'bold 32px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('遊戲結束', cx, canvas.height / 2 - 80);
+    ctx.fillText('遊戲結束', cx, cy - 80);
+    ctx.restore();
 
     // Stats
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '18px monospace';
     const mins = Math.floor(elapsed / 60);
     const secs = Math.floor(elapsed % 60);
-    ctx.fillText(`存活時間: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, cx, canvas.height / 2 - 30);
-    ctx.fillText(`擊殺數: ${player.kills}`, cx, canvas.height / 2 + 5);
-    ctx.fillText(`等級: ${player.level}`, cx, canvas.height / 2 + 40);
-
-    // Gold earned
-    ctx.fillStyle = '#ffdd44';
-    ctx.fillText(`獲得金幣: ${Math.floor(runGold || 0)}`, cx, canvas.height / 2 + 75);
-
-    // Restart prompt
-    ctx.fillStyle = '#aaaaaa';
+    ctx.fillStyle = '#ccccdd';
     ctx.font = '16px monospace';
-    ctx.fillText('點擊重新開始', cx, canvas.height / 2 + 120);
+    ctx.textAlign = 'center';
+    ctx.fillText(`存活時間  ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, cx, cy - 36);
+    ctx.fillText(`擊殺數    ${player.kills}`, cx, cy - 10);
+    ctx.fillText(`等級      ${player.level}`, cx, cy + 16);
+    ctx.fillStyle = '#ffdd44';
+    ctx.fillText(`獲得金幣  ${Math.floor(runGold || 0)}`, cx, cy + 44);
+
+    // Prompt button
+    ctx.save();
+    this._roundRect(cx - 90, cy + 68, 180, 42, 9);
+    ctx.fillStyle = '#2a1a1a';
+    ctx.fill();
+    ctx.strokeStyle = '#cc4444';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#ee6666';
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText('點擊重新開始', cx, cy + 93);
   }
 
   drawVictory(player, elapsed, canvas, runGold) {
     const ctx = this.ctx;
-
-    // Overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    this.drawStarfield(canvas);
+
+    // Animated radial burst from center
+    ctx.save();
+    const burst = ctx.createRadialGradient(cx, cy, 0, cx, cy, 200);
+    burst.addColorStop(0, `rgba(255,220,60,${0.12 + Math.sin(this.menuTime * 2) * 0.06})`);
+    burst.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = burst;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    // Panel card
+    const panW = Math.min(300, canvas.width - 40);
+    const panH = 260;
+    ctx.save();
+    ctx.shadowColor = '#ffdd44';
+    ctx.shadowBlur = 30 + Math.sin(this.menuTime * 2) * 8;
+    this._roundRect(cx - panW / 2, cy - panH / 2, panW, panH, 14);
+    ctx.fillStyle = 'rgba(20,18,4,0.92)';
+    ctx.fill();
+    this._roundRect(cx - panW / 2, cy - panH / 2, panW, panH, 14);
+    ctx.strokeStyle = 'rgba(220,200,40,0.65)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
 
     // Title
-    ctx.fillStyle = '#ffdd44';
-    ctx.font = 'bold 36px monospace';
+    ctx.save();
+    const tg = ctx.createLinearGradient(cx - 80, 0, cx + 80, 0);
+    tg.addColorStop(0, '#ffaa00');
+    tg.addColorStop(0.5, '#ffee44');
+    tg.addColorStop(1, '#ffaa00');
+    ctx.shadowColor = '#ffdd44';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = tg;
+    ctx.font = 'bold 34px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('勝利！', cx, canvas.height / 2 - 80);
+    ctx.fillText('勝利！', cx, cy - 88);
+    ctx.restore();
 
-    // Subtitle
-    ctx.fillStyle = '#44dd44';
-    ctx.font = '20px monospace';
-    ctx.fillText('恭喜通關！', cx, canvas.height / 2 - 45);
+    ctx.fillStyle = '#55ee88';
+    ctx.font = '17px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('恭喜通關！', cx, cy - 58);
 
     // Stats
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '18px monospace';
     const mins = Math.floor(elapsed / 60);
     const secs = Math.floor(elapsed % 60);
-    ctx.fillText(`通關時間: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, cx, canvas.height / 2 + 0);
-    ctx.fillText(`擊殺數: ${player.kills}`, cx, canvas.height / 2 + 35);
-    ctx.fillText(`等級: ${player.level}`, cx, canvas.height / 2 + 70);
-
-    // Gold earned (doubled)
-    ctx.fillStyle = '#ffdd44';
-    ctx.fillText(`獲得金幣: ${Math.floor(runGold || 0)} (2x)`, cx, canvas.height / 2 + 105);
-
-    // Return prompt
-    ctx.fillStyle = '#aaaaaa';
+    ctx.fillStyle = '#ccccdd';
     ctx.font = '16px monospace';
-    ctx.fillText('點擊返回主選單', cx, canvas.height / 2 + 150);
+    ctx.fillText(`通關時間  ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`, cx, cy - 18);
+    ctx.fillText(`擊殺數    ${player.kills}`, cx, cy + 8);
+    ctx.fillText(`等級      ${player.level}`, cx, cy + 34);
+    ctx.fillStyle = '#ffdd44';
+    ctx.fillText(`獲得金幣  ${Math.floor(runGold || 0)} (2x)`, cx, cy + 62);
+
+    // Prompt button
+    ctx.save();
+    this._roundRect(cx - 100, cy + 86, 200, 42, 9);
+    ctx.fillStyle = '#1e1a00';
+    ctx.fill();
+    ctx.shadowColor = '#ffcc00';
+    ctx.shadowBlur = 8;
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#ffee55';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText('點擊返回主選單', cx, cy + 111);
   }
 
   drawMenu(canvas, meta) {
@@ -1011,19 +1572,39 @@ export class Renderer {
     // rather than dead-center, which leaves too much empty space on tall phones.
     const anchorY = Math.round(canvas.height * 0.38);
 
+    // Background
     ctx.fillStyle = CONFIG.canvas.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Title
-    ctx.fillStyle = '#00d4ff';
+    // Animated starfield
+    this.drawStarfield(canvas);
+
+    // Subtle radial vignette from center-top for depth
+    const vign = ctx.createRadialGradient(cx, 0, 0, cx, canvas.height * 0.5, canvas.height * 0.85);
+    vign.addColorStop(0, 'rgba(0,100,180,0.12)');
+    vign.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = vign;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title — gradient text with glow
+    ctx.save();
+    const titleGrad = ctx.createLinearGradient(cx - 160, 0, cx + 160, 0);
+    titleGrad.addColorStop(0, '#00aaff');
+    titleGrad.addColorStop(0.45, '#00ffee');
+    titleGrad.addColorStop(1, '#aa66ff');
     ctx.font = 'bold 42px monospace';
     ctx.textAlign = 'center';
+    ctx.shadowColor = '#00d4ff';
+    ctx.shadowBlur = 24 + Math.sin(this.menuTime * 2) * 6;
+    ctx.fillStyle = titleGrad;
     ctx.fillText('CrazyGaGa', cx, anchorY - 60);
+    ctx.restore();
 
     // Subtitle
-    ctx.fillStyle = '#aaaacc';
-    ctx.font = '16px monospace';
-    ctx.fillText('Dungeon Archer · Horde Survival', cx, anchorY - 20);
+    ctx.fillStyle = '#8899bb';
+    ctx.font = '15px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Dungeon Archer · Horde Survival', cx, anchorY - 24);
 
     // Selected character & gold
     if (meta) {
@@ -1037,37 +1618,12 @@ export class Renderer {
       }
     }
 
-    // Mode buttons
-    const modeBtnW = 160;
-    const modeBtnH = 50;
-    const modeGap = 20;
-    const modeTotalW = modeBtnW * 2 + modeGap;
-    const modeStartX = cx - modeTotalW / 2;
-    const modeBtnY = anchorY + 200;
-
-    const modeButtons = [
-      { label: '🏹 地城模式', color: '#003366', border: '#00aaff' },
-      { label: '⚔️ 生存模式', color: '#332200', border: '#ffaa00' },
-    ];
-    for (let i = 0; i < 2; i++) {
-      const bx = modeStartX + i * (modeBtnW + modeGap);
-      ctx.fillStyle = modeButtons[i].color;
-      ctx.fillRect(bx, modeBtnY, modeBtnW, modeBtnH);
-      ctx.strokeStyle = modeButtons[i].border;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(bx, modeBtnY, modeBtnW, modeBtnH);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '15px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(modeButtons[i].label, bx + modeBtnW / 2, modeBtnY + 32);
-    }
-
-    // Controls
-    ctx.fillStyle = '#666688';
+    // Controls hint
+    ctx.fillStyle = '#555577';
     ctx.font = '13px monospace';
     ctx.fillText('WASD / 虛擬搖桿 移動', cx, anchorY + 100);
 
-    // Row of 3 buttons: 商店, 角色, 設定
+    // Row of 3 utility buttons: 商店, 角色, 設定
     const btnW = 90;
     const btnH = 40;
     const gap = 15;
@@ -1078,23 +1634,58 @@ export class Renderer {
 
     for (let i = 0; i < 3; i++) {
       const bx = startX + i * (btnW + gap);
-      ctx.fillStyle = '#2a2a4e';
-      ctx.fillRect(bx, btnY, btnW, btnH);
-      ctx.strokeStyle = '#6666aa';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(bx, btnY, btnW, btnH);
-      ctx.fillStyle = '#aaaacc';
-      ctx.font = '16px monospace';
+      ctx.save();
+      this._roundRect(bx, btnY, btnW, btnH, 7);
+      ctx.fillStyle = '#252550';
+      ctx.fill();
+      ctx.strokeStyle = '#5566aa';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#aabbdd';
+      ctx.font = '15px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(labels[i], bx + btnW / 2, btnY + 26);
     }
 
+    // Mode buttons — larger, with glow borders
+    const modeBtnW = 160;
+    const modeBtnH = 52;
+    const modeGap = 20;
+    const modeTotalW = modeBtnW * 2 + modeGap;
+    const modeStartX = cx - modeTotalW / 2;
+    const modeBtnY = anchorY + 200;
+
+    const modeButtons = [
+      { label: '🏹 地城模式', fill: '#06213f', border: '#00aaff', glow: '#00aaff' },
+      { label: '⚔️ 生存模式', fill: '#2e1800', border: '#ffaa00', glow: '#ffaa00' },
+    ];
+    for (let i = 0; i < 2; i++) {
+      const bx = modeStartX + i * (modeBtnW + modeGap);
+      // Fill
+      ctx.save();
+      this._roundRect(bx, modeBtnY, modeBtnW, modeBtnH, 10);
+      ctx.fillStyle = modeButtons[i].fill;
+      ctx.fill();
+      // Glowing border
+      ctx.shadowColor = modeButtons[i].glow;
+      ctx.shadowBlur = 14 + Math.sin(this.menuTime * 2.5 + i * Math.PI) * 4;
+      this._roundRect(bx, modeBtnY, modeBtnW, modeBtnH, 10);
+      ctx.strokeStyle = modeButtons[i].border;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 15px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(modeButtons[i].label, bx + modeBtnW / 2, modeBtnY + 33);
+    }
+
     // Version — bottom-left
-    ctx.fillStyle = '#6666aa';
+    ctx.fillStyle = '#444466';
     ctx.font = '12px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(`v${VERSION}`, 12, canvas.height - 10);
-
   }
 
   drawChapterSelect(canvas, meta, chapters) {
@@ -1103,6 +1694,7 @@ export class Renderer {
 
     ctx.fillStyle = CONFIG.canvas.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    this.drawStarfield(canvas);
 
     // Back button
     ctx.fillStyle = '#aaaacc';
@@ -1116,11 +1708,42 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.fillText('選擇章節', cx, canvas.height * 0.18);
 
-    // Chapter info
+    // Chapter info — drawn icons instead of emoji
     const chapterMeta = [
-      { icon: '🌲', difficulty: '★', diffLabel: 'Normal', color: '#44aa66' },
-      { icon: '🌋', difficulty: '★★', diffLabel: 'Hard', color: '#dd8833' },
-      { icon: '❄️', difficulty: '★★★', diffLabel: 'Expert', color: '#4488dd' },
+      { drawIcon: (x, y) => { // Forest: three triangles (trees)
+          ctx.fillStyle = '#55cc66';
+          for (let t = -1; t <= 1; t++) {
+            ctx.beginPath();
+            ctx.moveTo(x + t*9, y - 11);
+            ctx.lineTo(x + t*9 - 7, y + 4);
+            ctx.lineTo(x + t*9 + 7, y + 4);
+            ctx.closePath(); ctx.fill();
+          }
+        }, difficulty: '★', diffLabel: 'Normal', color: '#44aa66' },
+      { drawIcon: (x, y) => { // Volcano: triangle with peak
+          ctx.fillStyle = '#cc5522';
+          ctx.beginPath();
+          ctx.moveTo(x, y - 12); ctx.lineTo(x + 13, y + 6); ctx.lineTo(x - 13, y + 6);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#ff4400';
+          ctx.beginPath();
+          ctx.moveTo(x, y - 12); ctx.lineTo(x + 5, y - 4); ctx.lineTo(x - 5, y - 4);
+          ctx.closePath(); ctx.fill();
+        }, difficulty: '★★', diffLabel: 'Hard', color: '#dd8833' },
+      { drawIcon: (x, y) => { // Snowflake: 6 spokes
+          ctx.strokeStyle = '#88ccff';
+          ctx.lineWidth = 2;
+          ctx.lineCap = 'round';
+          for (let k = 0; k < 6; k++) {
+            const a = (k / 6) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12);
+            ctx.stroke();
+          }
+          ctx.fillStyle = '#88ccff';
+          ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+        }, difficulty: '★★★', diffLabel: 'Expert', color: '#4488dd' },
     ];
 
     const cardW = Math.min(320, canvas.width - 40);
@@ -1131,68 +1754,78 @@ export class Renderer {
 
     for (let i = 0; i < chapters.length; i++) {
       const ch = chapters[i];
-      const cm = chapterMeta[i] || { icon: '?', difficulty: '?', diffLabel: '', color: '#666' };
-      const cy = startY + i * (cardH + cardGap);
+      const cm = chapterMeta[i] || { drawIcon: () => {}, difficulty: '?', diffLabel: '', color: '#666' };
+      const cardY = startY + i * (cardH + cardGap);
       const unlocked = meta && (i === 0 || (meta.clearedChapters || []).includes(i - 1));
       const cleared = meta && (meta.clearedChapters || []).includes(i);
 
-      // Card background
-      ctx.fillStyle = unlocked ? '#1a1a3e' : '#111122';
-      ctx.fillRect(cardX, cy, cardW, cardH);
-
-      // Card border
-      ctx.strokeStyle = unlocked ? cm.color : '#333355';
+      // Card rounded background
+      ctx.save();
+      if (unlocked) {
+        ctx.shadowColor = cm.color;
+        ctx.shadowBlur = 8;
+      }
+      this._roundRect(cardX, cardY, cardW, cardH, 10);
+      ctx.fillStyle = unlocked ? '#181838' : '#0e0e20';
+      ctx.fill();
+      this._roundRect(cardX, cardY, cardW, cardH, 10);
+      ctx.strokeStyle = unlocked ? cm.color : '#2a2a44';
       ctx.lineWidth = 2;
-      ctx.strokeRect(cardX, cy, cardW, cardH);
+      ctx.stroke();
+      ctx.restore();
 
       if (!unlocked) {
-        // Locked state
-        ctx.fillStyle = '#444466';
-        ctx.font = '28px serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('🔒', cx, cy + 54);
-        ctx.font = '14px monospace';
-        ctx.fillText('通關前一章節以解鎖', cx, cy + 78);
+        // Locked padlock (drawn)
+        const lx = cx, ly = cardY + 40;
+        ctx.strokeStyle = '#555577'; ctx.fillStyle = '#555577';
+        ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(lx, ly - 8, 8, Math.PI, 0); ctx.stroke();
+        this._roundRect(lx - 10, ly - 4, 20, 16, 3);
+        ctx.fill();
+        ctx.fillStyle = '#333355';
+        ctx.beginPath(); ctx.arc(lx, ly + 3, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.font = '12px monospace'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#555577';
+        ctx.fillText('通關前一章節以解鎖', cx, cardY + cardH - 10);
       } else {
-        // Chapter icon + name
-        ctx.font = '28px serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(cm.icon, cardX + 16, cy + 50);
+        // Chapter drawn icon
+        cm.drawIcon(cardX + 28, cardY + 45);
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 17px monospace';
+        ctx.font = 'bold 16px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(`第${ch.id}章  ${ch.name}`, cardX + 56, cy + 32);
+        ctx.fillText(`第${ch.id}章  ${ch.name}`, cardX + 54, cardY + 32);
 
-        // Difficulty
         ctx.fillStyle = cm.color;
         ctx.font = '13px monospace';
-        ctx.fillText(`${cm.difficulty} ${cm.diffLabel}`, cardX + 56, cy + 54);
+        ctx.fillText(`${cm.difficulty} ${cm.diffLabel}`, cardX + 54, cardY + 52);
 
-        // Cleared badge
+        // Cleared check or pending
+        ctx.textAlign = 'right';
         if (cleared) {
-          ctx.fillStyle = '#44dd44';
+          ctx.fillStyle = '#44ee44';
           ctx.font = 'bold 12px monospace';
-          ctx.textAlign = 'right';
-          ctx.fillText('✓ 已通關', cardX + cardW - 12, cy + 32);
+          ctx.fillText('通關', cardX + cardW - 12, cardY + 32);
+          // Draw small checkmark
+          const ckx = cardX + cardW - 30, cky = cardY + 26;
+          ctx.strokeStyle = '#44ee44'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(ckx, cky); ctx.lineTo(ckx + 5, cky + 6); ctx.lineTo(ckx + 12, cky - 6);
+          ctx.stroke();
         } else {
-          ctx.fillStyle = '#aaaacc';
+          ctx.fillStyle = '#8888aa';
           ctx.font = '12px monospace';
-          ctx.textAlign = 'right';
-          ctx.fillText('未通關', cardX + cardW - 12, cy + 32);
+          ctx.fillText('未通關', cardX + cardW - 12, cardY + 32);
         }
 
-        // Room count
-        ctx.fillStyle = '#888899';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText(`${ch.rooms.length} 房間`, cardX + cardW - 12, cy + 54);
+        ctx.fillStyle = '#666688';
+        ctx.font = '11px monospace';
+        ctx.fillText(`${ch.rooms.length} 房間`, cardX + cardW - 12, cardY + 52);
 
-        // Play hint
-        ctx.fillStyle = '#aaaacc';
-        ctx.font = '12px monospace';
+        ctx.fillStyle = '#7788aa';
+        ctx.font = '11px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('點擊開始', cx, cy + cardH - 10);
+        ctx.fillText('點擊開始', cx, cardY + cardH - 10);
       }
     }
 
@@ -1285,6 +1918,7 @@ export class Renderer {
 
     ctx.fillStyle = CONFIG.canvas.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    this.drawStarfield(canvas);
 
     // Back button
     ctx.fillStyle = '#aaaacc';
@@ -1316,50 +1950,65 @@ export class Renderer {
       const y = startY + i * (cardH + gap);
       const unlocked = meta.unlocked.includes(def.id);
       const selected = meta.selected === def.id;
+      const borderColor = selected ? '#6688ff' : (unlocked ? '#4455bb' : '#2a2a44');
 
-      // Card background
-      ctx.fillStyle = selected ? '#2a2a5e' : '#1e1e3e';
-      ctx.fillRect(cardX, y, cardW, cardH);
-      ctx.strokeStyle = selected ? '#6688ff' : (unlocked ? '#4444aa' : '#333355');
-      ctx.lineWidth = 2;
-      ctx.strokeRect(cardX, y, cardW, cardH);
-
-      // Color dot
-      ctx.fillStyle = def.color;
-      ctx.beginPath();
-      ctx.arc(cardX + 25, y + 30, 10, 0, Math.PI * 2);
+      // Rounded card background
+      ctx.save();
+      if (selected) { ctx.shadowColor = '#6688ff'; ctx.shadowBlur = 12; }
+      this._roundRect(cardX, y, cardW, cardH, 10);
+      ctx.fillStyle = selected ? '#1e1e50' : '#161628';
       ctx.fill();
+      this._roundRect(cardX, y, cardW, cardH, 10);
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = selected ? 2.5 : 1.5;
+      ctx.stroke();
+      ctx.restore();
+
+      // Sphere dot in character color
+      this._drawSphere(cardX + 26, y + 38, 12, def.color);
 
       // Name
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 16px monospace';
+      ctx.font = 'bold 15px monospace';
       ctx.textAlign = 'left';
-      ctx.fillText(def.name, cardX + 45, y + 35);
+      ctx.fillText(def.name, cardX + 48, y + 32);
 
       // Description
-      ctx.fillStyle = '#8888aa';
+      ctx.fillStyle = '#8899bb';
       ctx.font = '12px monospace';
-      ctx.fillText(def.description, cardX + 45, y + 55);
+      ctx.fillText(def.description, cardX + 48, y + 52);
 
       // Stats
-      ctx.fillStyle = '#aaaacc';
+      ctx.fillStyle = '#667799';
       ctx.font = '11px monospace';
-      ctx.fillText(`HP:${def.baseStats.maxHp} SPD:${def.baseStats.speed}`, cardX + 45, y + 75);
+      ctx.fillText(`HP ${def.baseStats.maxHp}  SPD ${def.baseStats.speed}`, cardX + 48, y + 70);
 
-      // Status
+      // Status (right side)
       ctx.textAlign = 'right';
       if (!unlocked) {
-        ctx.fillStyle = '#ff6666';
-        ctx.font = 'bold 14px monospace';
-        ctx.fillText(`🔒 ${def.unlockCost}g`, cardX + cardW - 15, y + 40);
+        // Lock icon (drawn) + cost
+        const lx = cardX + cardW - 55, ly = y + 35;
+        ctx.strokeStyle = '#ff7777'; ctx.fillStyle = '#ff7777';
+        ctx.lineWidth = 2; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(lx, ly - 6, 5, Math.PI, 0); ctx.stroke();
+        this._roundRect(lx - 6, ly - 2, 12, 10, 2); ctx.fill();
+        ctx.fillStyle = '#ff7777';
+        ctx.font = 'bold 13px monospace';
+        ctx.fillText(`${def.unlockCost}g`, cardX + cardW - 12, y + 40);
       } else if (selected) {
-        ctx.fillStyle = '#66ff66';
-        ctx.font = 'bold 14px monospace';
-        ctx.fillText('✓ 使用中', cardX + cardW - 15, y + 40);
+        // Drawn checkmark
+        const ckx = cardX + cardW - 52, cky = y + 32;
+        ctx.strokeStyle = '#55ee55'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(ckx, cky); ctx.lineTo(ckx + 6, cky + 8); ctx.lineTo(ckx + 16, cky - 6);
+        ctx.stroke();
+        ctx.fillStyle = '#55ee55';
+        ctx.font = 'bold 13px monospace';
+        ctx.fillText('使用中', cardX + cardW - 12, y + 40);
       } else {
-        ctx.fillStyle = '#aaaacc';
-        ctx.font = '14px monospace';
-        ctx.fillText('點擊選擇', cardX + cardW - 15, y + 40);
+        ctx.fillStyle = '#8899bb';
+        ctx.font = '13px monospace';
+        ctx.fillText('點擊選擇', cardX + cardW - 12, y + 40);
       }
     }
   }
