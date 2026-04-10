@@ -1,5 +1,5 @@
 // Game configuration - all tunable values in one place
-export const VERSION = '2.7.0';
+export const VERSION = '2.8.0';
 
 export const CONFIG = {
   // Display

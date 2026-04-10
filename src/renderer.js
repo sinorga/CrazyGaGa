@@ -1766,33 +1766,55 @@ export class Renderer {
       // ── Chain lightning ─────────────────────────────────────────────────
       if (weapon.type === 'chain' && weapon.chainTargets && weapon.chainTimer > 0) {
         const fade = weapon.chainTimer / weapon.config.duration;
+        const targets = weapon.chainTargets;
         ctx.save();
-        // Draw multiple jittered bolt layers for crackling effect
-        for (let layer = 0; layer < 3; layer++) {
-          ctx.globalAlpha = fade * (0.9 - layer * 0.25);
-          ctx.strokeStyle = layer === 0 ? '#ffffff' : weapon.color;
-          ctx.lineWidth = layer === 0 ? 1.5 : 3 - layer;
-          ctx.shadowColor = weapon.color;
-          ctx.shadowBlur = layer === 0 ? 0 : 12;
-          ctx.beginPath();
-          for (let i = 0; i < weapon.chainTargets.length; i++) {
-            const tgt = weapon.chainTargets[i];
-            const sx = tgt.x - camera.x;
-            const sy = tgt.y - camera.y;
-            if (i === 0) {
-              ctx.moveTo(sx, sy);
-            } else {
-              // Jitter midpoints for lightning zig-zag
-              const prev = weapon.chainTargets[i - 1];
-              const px = prev.x - camera.x, py = prev.y - camera.y;
-              const jx = (px + sx) / 2 + (Math.random() - 0.5) * 20;
-              const jy = (py + sy) / 2 + (Math.random() - 0.5) * 20;
-              ctx.quadraticCurveTo(jx, jy, sx, sy);
-            }
-          }
-          ctx.stroke();
+
+        // Draw bolt segment between each consecutive target pair
+        for (let i = 1; i < targets.length; i++) {
+          const prev = targets[i - 1];
+          const curr = targets[i];
+          const x1 = prev.x - camera.x, y1 = prev.y - camera.y;
+          const x2 = curr.x - camera.x, y2 = curr.y - camera.y;
+          const seed = i * 7.3;
+          this._drawLightningBolt(x1, y1, x2, y2, t, seed, fade, weapon.color);
         }
-        ctx.globalAlpha = 1;
+
+        // Impact flash + discharge ring at each target node
+        for (let i = 0; i < targets.length; i++) {
+          const tx = targets[i].x - camera.x;
+          const ty = targets[i].y - camera.y;
+          const impactR = 12 + (i === 0 ? 6 : 0);
+
+          // Outer glow ring
+          ctx.globalAlpha = fade * 0.55;
+          ctx.strokeStyle = weapon.color;
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = weapon.color;
+          ctx.shadowBlur = 18;
+          ctx.beginPath(); ctx.arc(tx, ty, impactR, 0, Math.PI * 2); ctx.stroke();
+
+          // White core flash
+          ctx.shadowBlur = 0;
+          ctx.globalAlpha = fade * 0.8;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(tx, ty, impactR * 0.45, 0, Math.PI * 2); ctx.stroke();
+
+          // Radiating discharge spikes
+          ctx.strokeStyle = weapon.color;
+          ctx.lineWidth = 1.2;
+          ctx.shadowColor = weapon.color; ctx.shadowBlur = 8;
+          for (let k = 0; k < 6; k++) {
+            const a = (k / 6) * Math.PI * 2 + t * 6 + i;
+            const len = impactR * (0.65 + Math.sin(t * 12 + k + i) * 0.35);
+            ctx.beginPath();
+            ctx.moveTo(tx + Math.cos(a) * impactR * 0.5, ty + Math.sin(a) * impactR * 0.5);
+            ctx.lineTo(tx + Math.cos(a) * len, ty + Math.sin(a) * len);
+            ctx.stroke();
+          }
+        }
+
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
         ctx.restore();
       }
 
@@ -1824,6 +1846,108 @@ export class Renderer {
         }
       }
     }
+  }
+
+  // ── Lightning bolt — multi-segment fractal zig-zag ──────────────────────
+  // Draws a realistic crackling lightning arc between (x1,y1) and (x2,y2).
+  // Uses menuTime for stable animated jitter (no Math.random — no frame tearing).
+  _drawLightningBolt(x1, y1, x2, y2, t, seed, fade, color) {
+    const ctx = this.ctx;
+    const SEGS = 10; // sub-segments per bolt
+
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) return;
+    const nx = -dy / len, ny = dx / len; // perpendicular unit
+
+    // Build zig-zag polyline — offset each interior point perpendicular
+    // to the bolt direction. Envelope peaks in the middle.
+    const pts = [{ x: x1, y: y1 }];
+    for (let s = 1; s < SEGS; s++) {
+      const frac = s / SEGS;
+      const bx = x1 + dx * frac;
+      const by = y1 + dy * frac;
+      const envelope = Math.sin(frac * Math.PI); // 0→1→0
+      const maxOff = len * 0.22 * envelope;
+      // Two overlapping sin waves at different frequencies → complex crackle
+      const off = Math.sin(t * 22 + seed + s * 2.71) * maxOff * 0.65
+               + Math.sin(t * 37 + seed * 1.4 + s * 4.13) * maxOff * 0.35;
+      pts.push({ x: bx + nx * off, y: by + ny * off });
+    }
+    pts.push({ x: x2, y: y2 });
+
+    // Branch sparks — 2 small branches sprouting from interior points
+    const branchSeeds = [3, 7];
+    const branches = branchSeeds.map((bs, bi) => {
+      const base = pts[2 + bi * 3];
+      const branchLen = len * (0.18 + Math.sin(t * 8 + seed + bi) * 0.07);
+      const branchAngle = Math.atan2(dy, dx) + (bi % 2 === 0 ? 1 : -1) * (0.6 + Math.sin(t * 5 + bs) * 0.2);
+      return {
+        x1: base.x, y1: base.y,
+        x2: base.x + Math.cos(branchAngle) * branchLen,
+        y2: base.y + Math.sin(branchAngle) * branchLen,
+      };
+    });
+
+    // Helper: draw the polyline path
+    const polyPath = (points) => {
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+    };
+
+    ctx.save();
+
+    // Layer 1 — wide outer electric glow (blue-purple)
+    ctx.globalAlpha = fade * 0.25;
+    ctx.strokeStyle = '#8844ff';
+    ctx.lineWidth = 9;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = '#6622cc';
+    ctx.shadowBlur = 22;
+    polyPath(pts); ctx.stroke();
+
+    // Layer 2 — mid glow (weapon color)
+    ctx.globalAlpha = fade * 0.55;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4.5;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 16;
+    polyPath(pts); ctx.stroke();
+
+    // Layer 3 — bright inner bolt
+    ctx.globalAlpha = fade * 0.85;
+    ctx.strokeStyle = '#ddeeff';
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 8;
+    polyPath(pts); ctx.stroke();
+
+    // Layer 4 — white-hot core
+    ctx.globalAlpha = fade * 1.0;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 0.8;
+    ctx.shadowBlur = 0;
+    polyPath(pts); ctx.stroke();
+
+    // Draw branches (thinner, same layering)
+    for (const b of branches) {
+      const bpts = [
+        { x: b.x1, y: b.y1 },
+        { x: (b.x1 + b.x2) / 2 + nx * len * 0.04, y: (b.y1 + b.y2) / 2 + ny * len * 0.04 },
+        { x: b.x2, y: b.y2 },
+      ];
+      ctx.globalAlpha = fade * 0.45;
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.shadowColor = color; ctx.shadowBlur = 10;
+      polyPath(bpts); ctx.stroke();
+      ctx.globalAlpha = fade * 0.7;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.6; ctx.shadowBlur = 0;
+      polyPath(bpts); ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
   // ── Poison smoke — volumetric billowing cloud ───────────────────────────
