@@ -1,0 +1,32 @@
+schema: spec-driven
+
+context: |
+  Project: CrazyGaGa - HTML5 2D Roguelite Horde Survival Game
+  Inspired by: Archero (controls) + Vampire Survivors (horde gameplay)
+  Tech stack: Vanilla JavaScript (ES Modules), HTML5 Canvas 2D, Web Audio API
+  No build tools - runs directly in browser via ES modules
+  Mobile-first with virtual joystick, also supports keyboard (WASD)
+
+  Architecture:
+    - src/config.js: All tunable game values
+    - src/data/enemies.js: Enemy type definitions (extensible)
+    - src/data/weapons.js: Weapon definitions (extensible)
+    - src/data/skills.js: Skill/passive definitions (extensible)
+    - src/game.js: Main game loop and state management
+    - src/entities/: Player, Enemy, Projectile entities
+    - src/systems/: Combat, collision, wave spawning, upgrades
+
+  Design principles:
+    - Data-driven: enemies, weapons, skills defined in config files
+    - Extensible: adding new enemy/weapon/skill types requires only data changes
+    - Performance: spatial hash grid for collision, object pooling where needed
+    - Language: UI text in Traditional Chinese (繁體中文)
+
+rules:
+  proposal:
+    - Always consider impact on game balance
+    - New enemy/weapon/skill types should be added via data files, not code changes
+    - Keep proposals focused on one system at a time
+  tasks:
+    - Break implementation into testable increments
+    - Each task should result in a playable state
